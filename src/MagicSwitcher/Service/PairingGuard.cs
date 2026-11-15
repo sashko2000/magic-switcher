@@ -29,8 +29,6 @@ internal sealed class PairingGuard : IDisposable
     private static readonly TimeSpan PairingInterval = TimeSpan.FromSeconds(5);
     private const uint WmApp = 0x8000;
 
-    /// <summary>Silent pages in a row (15-20 s) after which a keyboard that answers again counts as just turned on or woken.</summary>
-    private const int SilentPagesBeforeTakeOver = 2;
 
     private readonly Thread _loop;
     private uint _loopThreadId;
@@ -233,14 +231,11 @@ internal sealed class PairingGuard : IDisposable
                 knocks++;
                 session.Report(knocks == 1 ? "Connecting…" : $"Connecting… (attempt {knocks})");
                 // Force only when Windows shows it connected while it does not type: then it is reachable for sure.
-                // An awake keyboard that does not stay connected is either taken by another host or ours and idle (nobody
-                // pressed a key yet): from here both look the same, and removing the pairing of an idle keyboard of ours
-                // breaks it until it is turned off and on. So take it over only when the user asked for it in the tray,
-                // or when it has just come back after being silent (off or asleep): a keyboard of ours that was just
-                // turned on or woken connects by itself within seconds.
-                bool mayTakeOver = session.Plan.TakeOverAtOnce || session.SilentPages >= SilentPagesBeforeTakeOver;
+                // Pairing again although the key test passes: only when the user asked for the keyboard in the tray and
+                // it still does not work 20 seconds later.
+                bool lastResort = session.RequestedAt is { } requested && DateTime.UtcNow - requested >= TimeSpan.FromSeconds(20);
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
-                    session.Plan.SelfConnectWait, mayTakeOver, quiet: session.QuietKnocks++ % 12 != 0, ct);
+                    session.Plan.SelfConnectWait, lastResort, quiet: session.QuietKnocks++ % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
                     AfterPairing?.Invoke();
@@ -252,10 +247,9 @@ internal sealed class PairingGuard : IDisposable
                 session.NextKnock = DateTime.UtcNow + outcome switch
                 {
                     Knock.NoAnswer => session.Plan.PageInterval,
-                    Knock.Idle => TimeSpan.FromSeconds(5),
+                    Knock.Idle => TimeSpan.FromSeconds(10),
                     _ => session.Plan.Interval,
                 };
-                session.SilentPages = outcome == Knock.NoAnswer ? session.SilentPages + 1 : 0;
                 if (outcome is not (Knock.NoAnswer or Knock.Idle))
                 {
                     session.QuietKnocks = 0;
@@ -273,35 +267,59 @@ internal sealed class PairingGuard : IDisposable
     /// <para>
     /// Windows has the key but the device does not work: page it first without touching the pairing (an uncached SDP
     /// query). No answer: it is asleep, off or away (or connected to another host) — keep the pairing, it reconnects by
-    /// itself when it wakes. It answers and stays connected: fine. It answers but does not stay connected: another host
-    /// took it — remove the old pairing and pair again at once.
+    /// itself when it wakes. It answers: test the stored key (<see cref="NativeBluetooth.TestLinkKey"/>). Accepted: it is
+    /// ours and idle, it connects when a key is pressed — keep the pairing. Rejected: another host took it — remove the
+    /// old pairing and pair again at once.
     /// </para>
     /// <para>Never reinstall HID on a keyboard that may be asleep: the failed HID connection makes Windows remove a good
     /// pairing, and the keyboard refuses a new one until it is turned off and on.</para>
     /// </summary>
     private static async Task<Knock> KnockAsync(GuardedDevice device, DeviceState state, int attempt, bool force,
-        TimeSpan selfConnectWait, bool mayTakeOver, bool quiet, CancellationToken ct)
+        TimeSpan selfConnectWait, bool lastResort, bool quiet, CancellationToken ct)
     {
         string name = Name(device);
         if (state.Known && state.Paired)
         {
-            if (!force)
+            if (force)
             {
-                bool? answered = await PageAsync(device.Address, ct);
-                if (answered != true)
-                {
-                    if (!quiet)
-                    {
-                        Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer to a page " +
-                                 $"({(answered is null ? "unknown" : "asleep, off or away")}): keeping the pairing, waiting for it to wake");
-                    }
+                // The tray says it does not type although Windows shows it connected: reinstall HID.
+                // If the device rejects our key, Windows removes the pairing and the next attempt pairs again.
+                int error = await Task.Run(() => NativeBluetooth.EnableServices(device.Address, device.Services), ct);
+                Log.Info($"[Guard] '{name}' knock {attempt} ({state}): requested, services reinstalled -> {error}");
+                return Knock.Other;
+            }
 
-                    return Knock.NoAnswer;
+            bool? answered = await PageAsync(device.Address, ct);
+            if (answered != true)
+            {
+                if (!quiet)
+                {
+                    Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer to a page " +
+                             $"({(answered is null ? "unknown" : "asleep, off or away")}): keeping the pairing, waiting for it to wake");
                 }
 
-                // Answered: give Windows a moment to bring HID up by itself. A keyboard that another host took does not
-                // connect to us at all, and it accepts a new pairing only for a short while after it is turned on, so
-                // do not wait long — but while a connection is up (HID may be starting), wait the full 10 seconds.
+                return Knock.NoAnswer;
+            }
+
+            // It is awake. Is it still ours? An awake keyboard that does not connect is either taken by another host or
+            // ours and idle (nobody pressed a key yet), and for a few seconds after a page both look like a working one
+            // (connected, paired, HID collections present). The stored key tells them apart — twice, to be sure,
+            // because the answer "rejected" costs the pairing.
+            string details = "";
+            var test = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
+            if (test == LinkKeyTest.Rejected)
+            {
+                test = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
+            }
+
+            bool takeOver = test == LinkKeyTest.Rejected;
+            if (takeOver)
+            {
+                Log.Info($"[Guard] '{name}' knock {attempt}: awake, but it rejects our key (taken by another host): {details}");
+            }
+            else
+            {
+                // Ours (or it stopped answering): give it time to connect by itself, and make sure it stays connected.
                 var waited = System.Diagnostics.Stopwatch.StartNew();
                 while (waited.Elapsed < TimeSpan.FromSeconds(10))
                 {
@@ -316,9 +334,6 @@ internal sealed class PairingGuard : IDisposable
 
                 if (Types(device, NativeBluetooth.GetState(device.Address)))
                 {
-                    // A keyboard that another host took looks exactly like a working one for about 5 seconds after a
-                    // page (connected, paired, HID collections present) and then drops: it rejects our key, but Windows
-                    // keeps the pairing, and paging again only repeats this. So it counts only if it holds.
                     var held = System.Diagnostics.Stopwatch.StartNew();
                     bool holds = true;
                     while (holds && held.Elapsed < TimeSpan.FromSeconds(8))
@@ -332,43 +347,34 @@ internal sealed class PairingGuard : IDisposable
                         Log.Info($"[Guard] '{name}' knock {attempt}: answered a page and connected");
                         return Knock.Other;
                     }
-
-                    if (mayTakeOver || !quiet)
-                    {
-                        Log.Info($"[Guard] '{name}' knock {attempt}: answered a page, but the connection dropped after {held.Elapsed.TotalSeconds:0} s");
-                    }
                 }
 
-                if (!mayTakeOver)
+                if (!(lastResort && test == LinkKeyTest.Accepted))
                 {
                     if (!quiet)
                     {
-                        Log.Info($"[Guard] '{name}' knock {attempt}: awake but not connected — ours and idle (press a key), or taken by " +
-                                 "another host (turn it off for 20 s and on): keeping the pairing");
+                        Log.Info($"[Guard] '{name}' knock {attempt}: awake but not connected, " + (test == LinkKeyTest.Accepted
+                            ? $"and it accepts our key — it is ours and idle (press a key): keeping the pairing ({details})"
+                            : $"and the key could not be tested: keeping the pairing ({details})"));
                     }
 
                     return Knock.Idle;
                 }
+
+                // The user asked for the keyboard in the tray a while ago and it still does not work, although the key
+                // test passes. In case the test cannot tell on this Bluetooth adapter, do what the user asked for.
+                Log.Info($"[Guard] '{name}' knock {attempt}: requested in the tray and still not connected: pairing again anyway ({details})");
+                takeOver = true;
             }
 
-            if (force)
-            {
-                // The tray says it does not type although Windows shows it connected: reinstall HID.
-                // If the device rejects our key, Windows removes the pairing and the next attempt pairs again.
-                int error = await Task.Run(() => NativeBluetooth.EnableServices(device.Address, device.Services), ct);
-                Log.Info($"[Guard] '{name}' knock {attempt} ({state}): requested, services reinstalled -> {error}");
-                return Knock.Other;
-            }
-
-            // Awake, but it does not stay connected with our key: another host took it, and its key replaced ours.
-            // Windows would notice only after a failed HID connection (reinstall HID, then 15-20 s), and by then the
-            // keyboard no longer accepts a new pairing: it does so only for a short while after it is turned on.
-            // So forget the useless key ourselves and pair right away.
+            // The key Windows has is useless. Windows would notice only after a failed HID connection (reinstall HID,
+            // then 15-20 s), and by then the keyboard no longer accepts a new pairing: it does so only for a short
+            // while after it is turned on. So forget the key ourselves and pair right away.
             state = NativeBluetooth.GetState(device.Address);
             if (state.Known && state.Paired)
             {
                 int removeError = await Task.Run(() => NativeBluetooth.RemovePairing(device.Address), ct);
-                Log.Info($"[Guard] '{name}' knock {attempt}: awake but does not stay connected (taken by another host): old pairing removed -> {removeError}");
+                Log.Info($"[Guard] '{name}' knock {attempt}: old pairing removed -> {removeError}");
                 state = NativeBluetooth.GetState(device.Address);
             }
         }
@@ -641,11 +647,8 @@ internal sealed class PairingGuard : IDisposable
         /// </summary>
         public TimeSpan PageInterval { get; init; } = TimeSpan.FromSeconds(3);
 
-        /// <summary>
-        /// Take over an awake keyboard that does not stay connected without waiting for it to go silent first:
-        /// only when the user asked for the keyboard in the tray.
-        /// </summary>
-        public bool TakeOverAtOnce { get; init; }
+        /// <summary>The user asked for the keyboard in the tray.</summary>
+        public bool Requested { get; init; }
 
         /// <summary>How long a device that answered a page gets to connect by itself.</summary>
         public TimeSpan SelfConnectWait { get; init; } = TimeSpan.FromSeconds(10);
@@ -662,7 +665,7 @@ internal sealed class PairingGuard : IDisposable
         public static Plan Request(TimeSpan duration) => new(TimeSpan.Zero, TimeSpan.FromSeconds(10), duration, TimeSpan.FromSeconds(10))
         {
             // The user is waiting and may be turning the keyboard off and on right now: notice it within seconds.
-            TakeOverAtOnce = true,
+            Requested = true,
             PageInterval = TimeSpan.FromSeconds(2),
             SelfConnectWait = TimeSpan.FromSeconds(5),
         };
@@ -680,8 +683,8 @@ internal sealed class PairingGuard : IDisposable
 
         public DateTime Started { get; } = DateTime.UtcNow;
 
-        /// <summary>Pages in a row that the device did not answer.</summary>
-        public int SilentPages { get; set; }
+        /// <summary>When the user asked for the device in the tray; null for a session started by an event.</summary>
+        public DateTime? RequestedAt { get; private set; } = plan.Requested ? DateTime.UtcNow : null;
 
         /// <summary>Knocks in a row that changed nothing: only every 12th is logged.</summary>
         public int QuietKnocks { get; set; }
@@ -699,11 +702,12 @@ internal sealed class PairingGuard : IDisposable
             {
                 Interval = TimeSpan.FromSeconds(10),
                 StableFor = TimeSpan.FromSeconds(10),
-                TakeOverAtOnce = true,
+                Requested = true,
                 PageInterval = TimeSpan.FromSeconds(2),
                 SelfConnectWait = TimeSpan.FromSeconds(5),
             };
             NextKnock = DateTime.UtcNow;
+            RequestedAt = DateTime.UtcNow;
             var deadline = DateTime.UtcNow + duration;
             if (deadline > Deadline)
             {

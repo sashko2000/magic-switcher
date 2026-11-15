@@ -70,7 +70,7 @@ From then on:
 - to use the keyboard here after another device, click **Connect “Magic Keyboard”** in the tray menu (or double-click
   the icon) and turn the keyboard off and on (if it was only asleep, pressing a key is enough);
 - after a restart, or when the PC is locked: if the keyboard stayed with this PC, just press a key; if another device
-  used it meanwhile, turn it off, wait about 20 seconds and turn it on. No dialog, even before you sign in.
+  used it meanwhile, turn it off and on. No dialog, even before you sign in.
 
 ## How it compares to the alternatives
 
@@ -114,26 +114,25 @@ The optional Windows service fixes that. Install it in **Settings → Background
 - while Windows still has the key, it only *pages* the keyboard (an uncached SDP query, which does not touch the
   pairing) every few seconds. No answer means the keyboard is asleep, off or busy with the other host: nothing is
   changed, and a sleeping keyboard reconnects by itself when you press a key;
-- a keyboard that answers but does not stay connected is either taken by another host or yours and idle (nobody has
-  pressed a key yet). From the PC both look the same — for a few seconds after a page even a keyboard with another
-  host's key looks like a working one (connected, paired, HID collections present) and then drops, and Windows keeps
-  the useless key — so the service takes the keyboard over only when it is sure:
-  - you clicked **Connect** in the tray, or
-  - the keyboard was silent (off or asleep) for 15–20 seconds and then answered again without connecting: a keyboard
-    of yours that was just turned on or woken connects by itself within seconds.
-
-  Taking over means: remove the old pairing, pair again with bonding (`BluetoothAuthenticateDeviceEx`), answer the
-  pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no dialog appears, and enable the HID service.
-  Waiting for Windows to drop the rejected key would take too long: the keyboard accepts a new pairing only for a
-  short while after it is turned on. From turning the keyboard on to typing takes 10–20 seconds;
+- a keyboard that answers but does not connect is either taken by another host or yours and idle (nobody has pressed a
+  key yet). For a few seconds after a page both look like a working keyboard (connected, paired, HID collections
+  present), so the service **tests the stored key**: it opens an RFCOMM connection that requires authentication. The
+  keyboard has no RFCOMM service and the connection fails either way, but with a good key the link stays up for a few
+  seconds, and with a rejected key Windows drops it at once (and keeps the useless pairing). The pairing is not touched
+  by the test;
+- key accepted: the keyboard is yours, it connects as soon as you press a key, and nothing is changed. Key rejected
+  (checked twice): the service removes the old pairing, pairs again with bonding (`BluetoothAuthenticateDeviceEx`),
+  answers the pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no dialog appears, and enables the HID
+  service. Waiting for Windows to drop the rejected key would take too long: the keyboard accepts a new pairing only
+  for a short while after it is turned on;
 - it never reinstalls the HID service of a keyboard that may be asleep: the failed first HID connection would make
   Windows delete a good pairing;
 - keeps watching until the keyboard has worked for a minute without interruption;
 - never knocks outside these events: when you hand the keyboard to a phone on purpose, it is left alone. Every event,
   the keyboard state and the service's decision are written to the service log.
 
-After another host used the keyboard: with **Connect** in the tray, turn it off and on once; on the sign-in screen,
-turn it off, wait about 20 seconds and turn it on. It accepts a new host only shortly after it is turned on.
+After another host used the keyboard, turn it off and on once: it accepts a new host only shortly after it is turned
+on.
 
 > 🔒 Automatic confirmation skips the pairing code check. The service confirms only devices you selected and only while
 > it is restoring them after one of the events above; at any other time Windows asks as usual.
@@ -320,8 +319,8 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.4.2
-git push origin v1.4.2
+git tag v1.4.3
+git push origin v1.4.3
 ```
 
 ## Files
@@ -348,6 +347,7 @@ src/MagicSwitcher/
 │  ├─ MicrophoneWatcher.cs        — notices connected audio devices that lost it
 │  ├─ NativeBluetooth.cs          — P/Invoke to bthprops.cpl (service reinstall)
 │  ├─ NativeBluetooth.Pairing.cs  — pairing without the Windows dialog
+│  ├─ NativeBluetooth.LinkKey.cs  — does the device still accept the stored link key
 │  ├─ BatteryReader.cs            — battery level: Windows property, BLE GATT
 │  ├─ HidBatteryReader.cs         — battery level from HID reports (incl. Apple)
 │  ├─ HidNative.cs                — shared hid.dll interop, HID collection lookup
@@ -374,6 +374,7 @@ src/MagicSwitcher/
    ├─ KeyRemapForm.cs             — key remapping dialog
    └─ TrayIconFactory.cs          — icon drawn at runtime
 tools/InputProbe/                 — logs the order of keyboard hook, raw input and HID reports (used to design the remapper)
+tools/KeyProbe/                   — tests whether a paired keyboard still accepts the stored link key
 ```
 
 ## License
