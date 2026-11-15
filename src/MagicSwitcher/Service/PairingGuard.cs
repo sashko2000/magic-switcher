@@ -288,12 +288,6 @@ internal sealed class PairingGuard : IDisposable
                 bool lastResort = session.RequestedAt is { } requested && DateTime.UtcNow - requested >= TimeSpan.FromSeconds(20);
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
                     session.Plan.SelfConnectWait, session.RequestedAt is not null, lastResort, () => session.KeyLost,
-                    result => session.Rejections = result switch
-                    {
-                        LinkKeyTest.Rejected => session.Rejections + 1,
-                        LinkKeyTest.Accepted => 0,
-                        _ => session.Rejections, // nothing learned
-                    },
                     phase => Report(session, phase), quiet: session.QuietKnocks++ % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
@@ -320,7 +314,6 @@ internal sealed class PairingGuard : IDisposable
                 {
                     Knock.NoAnswer => session.Plan.PageInterval,
                     Knock.NotReady => TimeSpan.FromSeconds(2),
-                    Knock.Suspect => TimeSpan.FromSeconds(1),
                     Knock.Idle => TimeSpan.FromSeconds(10),
                     _ => session.Plan.Interval,
                 };
@@ -349,8 +342,8 @@ internal sealed class PairingGuard : IDisposable
     /// pairing, and the keyboard refuses a new one until it is turned off and on.</para>
     /// </summary>
     private static async Task<Knock> KnockAsync(GuardedDevice device, DeviceState state, int attempt, bool force,
-        TimeSpan selfConnectWait, bool requested, bool lastResort, Func<bool> keyLost, Func<LinkKeyTest, int> countRejections,
-        Action<KeyboardPhase> report, bool quiet, CancellationToken ct)
+        TimeSpan selfConnectWait, bool requested, bool lastResort, Func<bool> keyLost, Action<KeyboardPhase> report,
+        bool quiet, CancellationToken ct)
     {
         string name = Name(device);
         if (state.Known && state.Paired)
@@ -377,7 +370,6 @@ internal sealed class PairingGuard : IDisposable
             string details = "";
             var test = await TestKeyAsync(device, ct);
             details = test.Details;
-            int rejections = countRejections(test.Result);
             if (keyLost())
             {
                 // The test's authenticated connection made the keyboard ask for a new pairing (it was just turned on).
@@ -401,14 +393,21 @@ internal sealed class PairingGuard : IDisposable
                 return Knock.NoAnswer;
             }
 
-            // "Rejected" costs the pairing: when nobody asked for the keyboard, it takes two in a row — each on a fresh
-            // link, so the second one is the next knock, after the link left by this test has dropped.
-            bool takeOver = test.Result == LinkKeyTest.Rejected && (requested || rejections >= 2);
+            // A rejected key means another host took the keyboard. When the user asked for it in the tray, pair anew at
+            // once. Otherwise only say so on the sign-in screen and keep the pairing: the keyboard has to be turned off
+            // and on anyway, and when it is, the next test makes it ask to pair (see KeyLost) — proof enough to pair
+            // anew. So nothing is removed on the strength of one test, and a wrong "rejected" costs nothing.
+            bool takeOver = test.Result == LinkKeyTest.Rejected && requested;
             if (test.Result == LinkKeyTest.Rejected && !takeOver)
             {
-                Log.Info($"[Guard] '{name}' knock {attempt}: awake, and it seems to reject our key: checking once more ({details})");
-                report(KeyboardPhase.Waiting);
-                return Knock.Suspect;
+                if (!quiet)
+                {
+                    Log.Info($"[Guard] '{name}' knock {attempt}: awake, but it rejects our key (taken by another host): " +
+                             $"waiting for it to be turned off and on ({details})");
+                }
+
+                report(KeyboardPhase.PowerCycle);
+                return Knock.Idle;
             }
 
             if (takeOver)
@@ -531,29 +530,44 @@ internal sealed class PairingGuard : IDisposable
         Idle,
         /// <summary>Bluetooth is still starting, or an earlier link is still up: the key could not be tested.</summary>
         NotReady,
-        /// <summary>The key was rejected once, and nobody asked for the keyboard: test again before taking it over.</summary>
-        Suspect,
         Other,
     }
 
+    /// <summary>When a key test last left a link to the device up.</summary>
+    private static readonly ConcurrentDictionary<ulong, DateTime> LastLink = new();
+
+    /// <summary>How long after a link was left up the next key test means something.</summary>
+    private static readonly TimeSpan LinkRest = TimeSpan.FromSeconds(15);
+
     /// <summary>
-    /// Tests the stored link key (<see cref="NativeBluetooth.TestLinkKey"/>) on a fresh link: on a link that is already
-    /// up (left by an earlier attempt) Windows does not authenticate again, and a rejected key looks accepted.
+    /// Tests the stored link key (<see cref="NativeBluetooth.TestLinkKey"/>) on a fresh link. For several seconds after
+    /// any connection — even when Windows already reports the device as not connected — the next one reuses the link,
+    /// Windows does not authenticate again, and a rejected key looks accepted (seen twice: "rejected", and a second
+    /// later "accepted"). So wait until the link has had time to drop; if it cannot, the test is put off.
     /// </summary>
     private static async Task<(LinkKeyTest Result, string Details)> TestKeyAsync(GuardedDevice device, CancellationToken ct)
     {
-        for (int i = 0; i < 24 && NativeBluetooth.GetState(device.Address).Connected; i++)
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (NativeBluetooth.GetState(device.Address).Connected
+               || (LastLink.TryGetValue(device.Address, out var last) && DateTime.UtcNow - last < LinkRest))
         {
-            await Task.Delay(500, ct);
-        }
+            if (DateTime.UtcNow >= deadline || Types(device, NativeBluetooth.GetState(device.Address)))
+            {
+                // Still up — or the keyboard has connected meanwhile (a key was pressed): back to the session, which
+                // notices that at once.
+                return (LinkKeyTest.NotReady, "an earlier link is still up");
+            }
 
-        if (NativeBluetooth.GetState(device.Address).Connected)
-        {
-            return (LinkKeyTest.NotReady, "an earlier link is still up");
+            await Task.Delay(500, ct);
         }
 
         string details = "";
         var result = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
+        if (result is LinkKeyTest.Accepted or LinkKeyTest.Rejected)
+        {
+            LastLink[device.Address] = DateTime.UtcNow; // both leave a link up for a few seconds
+        }
+
         return (result, details);
     }
 
@@ -840,9 +854,6 @@ internal sealed class PairingGuard : IDisposable
         public DateTime NextKnock { get; set; } = DateTime.UtcNow + plan.InitialWait;
 
         public DateTime Started { get; } = DateTime.UtcNow;
-
-        /// <summary>Key tests in a row that said "rejected".</summary>
-        public int Rejections { get; set; }
 
         /// <summary>The phase shown in the status window; None: nothing was shown (or it has been taken back).</summary>
         public KeyboardPhase Phase { get; set; }
