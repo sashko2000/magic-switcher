@@ -474,4 +474,19 @@
   <data name="TrayKeyboardConnectedTooltip" xml:space="preserve">
     <value>Connected to this computer. To reconnect it anyway, use Troubleshooting.</value>
   </data>
+  <data name="OverlayWaiting" xml:space="preserve">
+    <value>{0} is not connected. Press a key on it. If another device used it, turn it off and on.</value>
+  </data>
+  <data name="OverlayIdle" xml:space="preserve">
+    <value>{0} is on: press a key on it to connect.</value>
+  </data>
+  <data name="OverlayPairing" xml:space="preserve">
+    <value>Pairing {0}… Keep it on, do not turn it off.</value>
+  </data>
+  <data name="OverlayConnecting" xml:space="preserve">
+    <value>{0} is paired, connecting… Keep it on.</value>
+  </data>
+  <data name="OverlayConnected" xml:space="preserve">
+    <value>{0} is connected.</value>
+  </data>
 </root>

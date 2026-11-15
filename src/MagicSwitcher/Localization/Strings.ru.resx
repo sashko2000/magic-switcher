@@ -474,4 +474,19 @@
   <data name="TrayKeyboardConnectedTooltip" xml:space="preserve">
     <value>Подключена к этому компьютеру. Принудительное переподключение — в «Диагностике».</value>
   </data>
+  <data name="OverlayWaiting" xml:space="preserve">
+    <value>{0} не подключена. Нажмите на ней клавишу. Если ею пользовалось другое устройство — выключите и включите её.</value>
+  </data>
+  <data name="OverlayIdle" xml:space="preserve">
+    <value>{0} включена: нажмите на ней клавишу, чтобы подключить.</value>
+  </data>
+  <data name="OverlayPairing" xml:space="preserve">
+    <value>Создаю пару с {0}… Не выключайте клавиатуру.</value>
+  </data>
+  <data name="OverlayConnecting" xml:space="preserve">
+    <value>Пара с {0} создана, подключаю… Не выключайте клавиатуру.</value>
+  </data>
+  <data name="OverlayConnected" xml:space="preserve">
+    <value>{0} подключена.</value>
+  </data>
 </root>

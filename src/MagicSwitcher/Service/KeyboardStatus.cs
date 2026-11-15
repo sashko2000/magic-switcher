@@ -1,0 +1,70 @@
+using MagicSwitcher.Infrastructure;
+
+namespace MagicSwitcher.Service;
+
+/// <summary>What the service is doing about a keyboard that does not work, for the status window on the sign-in screen.</summary>
+internal enum KeyboardPhase
+{
+    /// <summary>Nothing to show.</summary>
+    None,
+    /// <summary>It does not answer: asleep, off, away or busy with another host.</summary>
+    Waiting,
+    /// <summary>It is awake and still ours, but idle: it connects when a key is pressed.</summary>
+    Idle,
+    /// <summary>Pairing it again: it must stay on.</summary>
+    Pairing,
+    /// <summary>Paired, the keyboard service is starting.</summary>
+    Connecting,
+    Connected,
+}
+
+/// <summary>
+/// The current <see cref="KeyboardPhase"/> in a file (%ProgramData%\MagicSwitcher\status.txt): written by the service,
+/// polled by the status window, which runs in another session.
+/// </summary>
+internal static class KeyboardStatus
+{
+    private static readonly Lock Sync = new();
+
+    public static string FilePath { get; } = Path.Combine(AppPaths.MachineDataDirectory, "status.txt");
+
+    public static void Write(KeyboardPhase phase, string name)
+    {
+        lock (Sync)
+        {
+            try
+            {
+                if (phase == KeyboardPhase.None)
+                {
+                    File.Delete(FilePath);
+                    return;
+                }
+
+                Directory.CreateDirectory(AppPaths.MachineDataDirectory);
+                string temp = FilePath + ".tmp";
+                File.WriteAllText(temp, $"{phase}|{name}");
+                File.Move(temp, FilePath, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Info($"Status file: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>null when there is nothing to show (or the file is being replaced right now).</summary>
+    public static (KeyboardPhase Phase, string Name)? Read()
+    {
+        try
+        {
+            string[] parts = File.ReadAllText(FilePath).Split('|', 2);
+            return parts.Length == 2 && Enum.TryParse<KeyboardPhase>(parts[0], out var phase) && phase != KeyboardPhase.None
+                ? (phase, parts[1])
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+}

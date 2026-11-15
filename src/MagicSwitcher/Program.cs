@@ -57,6 +57,12 @@ internal static class Program
             return RemapHelper.RunHelper();
         }
 
+        if (Has(args, StatusOverlay.OverlayArgument))
+        {
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("Unhandled exception", e.ExceptionObject as Exception);
+            return StatusOverlay.RunOverlay();
+        }
+
         if (Has(args, WindowsAudio.RestartArgument))
         {
             return WindowsAudio.Restart();

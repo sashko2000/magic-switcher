@@ -51,6 +51,7 @@ internal static class PrivilegedActions
                 .ToList(),
             AppleMediaKeys = appleMediaKeys,
             KeyMap = keyMap,
+            Language = System.Globalization.CultureInfo.CurrentUICulture.Name,
         };
 
         try

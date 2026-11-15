@@ -47,8 +47,9 @@ heuristics. What it does, and why:
 
 - a **low-level keyboard hook** — to remap keys and switch the top row of the Apple keyboard only (nothing is recorded
   or sent anywhere);
-- a **Windows service running as LocalSystem** — to pair the keyboard again before you sign in, and a helper it starts
-  in your session so remapping also works in administrator windows;
+- a **Windows service running as LocalSystem** — to pair the keyboard again before you sign in; a helper it starts
+  in your session so remapping also works in administrator windows; and a display-only status line it shows on the
+  sign-in and lock screens while the keyboard does not work;
 - **downloads Apple's Boot Camp update from Apple's servers** and installs the keyboard driver from it — only when you
   click **Install driver**.
 
@@ -129,6 +130,10 @@ The optional Windows service fixes that. Install it in **Settings → Background
 - it never reinstalls the HID service of a keyboard that may be asleep: the failed first HID connection would make
   Windows delete a good pairing;
 - keeps watching until the keyboard has worked for a minute without interruption;
+- **tells you what is going on** on the sign-in and lock screens, where the tray icon cannot: a small status line at
+  the bottom of the screen says “not connected — press a key; if another device used it, turn it off and on”,
+  “pairing… keep it on” or “connected”. Without it you cannot tell whether to switch the keyboard again or to wait.
+  The line is display only (it takes no keyboard or mouse input) and appears only while the keyboard does not work;
 - never knocks outside these events: when you hand the keyboard to a phone on purpose, it is left alone. Every event,
   the keyboard state and the service's decision are written to the service log.
 
@@ -320,8 +325,8 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.4.3
-git push origin v1.4.3
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 ## Files
@@ -335,6 +340,7 @@ git push origin v1.4.3
 | `%ProgramData%\MagicSwitcher\top-row.txt` | top row mode (Fn Lock): F-keys or media keys |
 | `%ProgramData%\MagicSwitcher\service-log.txt` | service log (tray menu → **Troubleshooting** → **Open service log**) |
 | `%ProgramData%\MagicSwitcher\remap-log.txt` | log of the key remapper started by the service |
+| `%ProgramData%\MagicSwitcher\status.txt`, `overlay-log.txt` | what the status line on the sign-in screen shows, and its log |
 
 ## Project structure
 
@@ -362,6 +368,7 @@ src/MagicSwitcher/
 │  ├─ ServiceInstaller.cs         — installs to Program Files, registers / removes the service
 │  ├─ PrivilegedActions.cs        — admin actions: through the service, or with UAC
 │  ├─ RemapHelper.cs              — runs the key remapper as SYSTEM in the user's session
+│  ├─ StatusOverlay.cs            — status line on the sign-in and lock screens (KeyboardStatus.cs: what it shows)
 │  └─ WindowsAudio.cs             — restarts the audio services and Intel Smart Sound Bluetooth audio
 ├─ Keyboard/
 │  ├─ AppleKeyboardDriver.cs      — downloads/installs Apple's keyboard driver, Fn mode

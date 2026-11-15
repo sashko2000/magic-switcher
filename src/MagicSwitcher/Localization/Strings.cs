@@ -168,4 +168,9 @@ internal static class Strings
     public static string TrayOtherDevices => Get(nameof(TrayOtherDevices));
     public static string TrayTroubleshooting => Get(nameof(TrayTroubleshooting));
     public static string TrayKeyboardConnectedTooltip => Get(nameof(TrayKeyboardConnectedTooltip));
+    public static string OverlayWaiting(object? arg0) => Format(nameof(OverlayWaiting), arg0);
+    public static string OverlayIdle(object? arg0) => Format(nameof(OverlayIdle), arg0);
+    public static string OverlayPairing(object? arg0) => Format(nameof(OverlayPairing), arg0);
+    public static string OverlayConnecting(object? arg0) => Format(nameof(OverlayConnecting), arg0);
+    public static string OverlayConnected(object? arg0) => Format(nameof(OverlayConnected), arg0);
 }

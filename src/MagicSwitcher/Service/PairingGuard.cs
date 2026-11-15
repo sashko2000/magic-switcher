@@ -61,6 +61,12 @@ internal sealed class PairingGuard : IDisposable
     /// </summary>
     public Action? AfterPairing { get; set; }
 
+    /// <summary>
+    /// What the guard is doing about a device that does not work, for the status window on the sign-in screen.
+    /// Nothing is reported for a device that simply connects by itself.
+    /// </summary>
+    public Action<GuardedDevice, KeyboardPhase>? StatusChanged { get; set; }
+
     public IReadOnlyList<GuardedDevice> Devices
     {
         get { lock (_sync) { return _devices; } }
@@ -172,10 +178,39 @@ internal sealed class PairingGuard : IDisposable
                 }
 
                 Log.Info($"[Guard] {reason}: '{Name(device)}' {(working ? "works" : "still not working, stopped watching")}: {NativeBluetooth.GetState(device.Address)}");
+                if (!working)
+                {
+                    Report(session, KeyboardPhase.None);
+                }
+
                 session.Complete(working);
             }
         });
         return session;
+    }
+
+    /// <summary>Publishes the phase. "Connected" is good news only to someone who was shown a problem before.</summary>
+    private void Report(Session session, KeyboardPhase phase)
+    {
+        if (session.RequestedAt is not null)
+        {
+            phase = KeyboardPhase.None; // asked for in the tray: the user is at the desktop, and the tray reports
+        }
+
+        if (phase == session.Phase || (phase is KeyboardPhase.Connected or KeyboardPhase.None && session.Phase == KeyboardPhase.None))
+        {
+            return;
+        }
+
+        session.Phase = phase == KeyboardPhase.Connected ? KeyboardPhase.None : phase; // after "connected" there is nothing to take back
+        try
+        {
+            StatusChanged?.Invoke(session.Device, phase);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[Guard] Status report failed", ex);
+        }
     }
 
     /// <summary>
@@ -198,6 +233,11 @@ internal sealed class PairingGuard : IDisposable
             else if (Types(device, state) && !(session.ForceFirstKnock && knocks == 0))
             {
                 workingSince ??= DateTime.UtcNow;
+                if (DateTime.UtcNow - workingSince >= TimeSpan.FromSeconds(3))
+                {
+                    Report(session, KeyboardPhase.Connected);
+                }
+
                 if (DateTime.UtcNow - workingSince >= session.Plan.StableFor)
                 {
                     return true;
@@ -246,7 +286,8 @@ internal sealed class PairingGuard : IDisposable
                 // it still does not work 20 seconds later.
                 bool lastResort = session.RequestedAt is { } requested && DateTime.UtcNow - requested >= TimeSpan.FromSeconds(20);
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
-                    session.Plan.SelfConnectWait, session.RequestedAt is not null, lastResort, () => session.KeyLost, quiet: session.QuietKnocks++ % 12 != 0, ct);
+                    session.Plan.SelfConnectWait, session.RequestedAt is not null, lastResort, () => session.KeyLost,
+                    phase => Report(session, phase), quiet: session.QuietKnocks++ % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
                     AfterPairing?.Invoke();
@@ -254,6 +295,18 @@ internal sealed class PairingGuard : IDisposable
 
                 session.KeyLost = false;
                 session.LastKnock = DateTime.UtcNow;
+                switch (outcome)
+                {
+                    case Knock.NoAnswer:
+                        Report(session, KeyboardPhase.Waiting);
+                        break;
+                    case Knock.Idle:
+                        Report(session, KeyboardPhase.Idle);
+                        break;
+                    case Knock.Paired:
+                        Report(session, KeyboardPhase.Connecting);
+                        break;
+                }
                 // No answer changed nothing, so page again soon (the user may be turning the keyboard on right now);
                 // after anything else give Windows time to connect.
                 session.NextKnock = DateTime.UtcNow + outcome switch
@@ -287,7 +340,8 @@ internal sealed class PairingGuard : IDisposable
     /// pairing, and the keyboard refuses a new one until it is turned off and on.</para>
     /// </summary>
     private static async Task<Knock> KnockAsync(GuardedDevice device, DeviceState state, int attempt, bool force,
-        TimeSpan selfConnectWait, bool requested, bool lastResort, Func<bool> keyLost, bool quiet, CancellationToken ct)
+        TimeSpan selfConnectWait, bool requested, bool lastResort, Func<bool> keyLost, Action<KeyboardPhase> report,
+        bool quiet, CancellationToken ct)
     {
         string name = Name(device);
         if (state.Known && state.Paired)
@@ -304,7 +358,7 @@ internal sealed class PairingGuard : IDisposable
             if (keyLost())
             {
                 Log.Info($"[Guard] '{name}' knock {attempt}: it asked to pair although Windows has a key: pairing anew");
-                return await PairAnewAsync(device, attempt, ct);
+                return await PairAnewAsync(device, attempt, report, ct);
             }
 
             // Is it awake, and is it still ours? An awake keyboard that does not connect is either taken by another host
@@ -326,7 +380,7 @@ internal sealed class PairingGuard : IDisposable
             {
                 // The test's authenticated connection made the keyboard ask for a new pairing (it was just turned on).
                 Log.Info($"[Guard] '{name}' knock {attempt}: it asked to pair during the key test: pairing anew ({details})");
-                return await PairAnewAsync(device, attempt, ct);
+                return await PairAnewAsync(device, attempt, report, ct);
             }
 
             if (test.Result == LinkKeyTest.Unreachable)
@@ -396,7 +450,7 @@ internal sealed class PairingGuard : IDisposable
 
         }
 
-        return await PairAnewAsync(device, attempt, ct);
+        return await PairAnewAsync(device, attempt, report, ct);
     }
 
     /// <summary>
@@ -404,9 +458,10 @@ internal sealed class PairingGuard : IDisposable
     /// would drop a rejected key only after a failed HID connection (reinstall HID, then 15-20 s), and by then the
     /// keyboard no longer accepts a new pairing: it does so only for a short while after it is turned on.
     /// </summary>
-    private static async Task<Knock> PairAnewAsync(GuardedDevice device, int attempt, CancellationToken ct)
+    private static async Task<Knock> PairAnewAsync(GuardedDevice device, int attempt, Action<KeyboardPhase> report, CancellationToken ct)
     {
         string name = Name(device);
+        report(KeyboardPhase.Pairing);
         var state = NativeBluetooth.GetState(device.Address);
         if (state.Known && state.Paired)
         {
@@ -431,6 +486,7 @@ internal sealed class PairingGuard : IDisposable
             return Knock.Paired;
         }
 
+        report(KeyboardPhase.Waiting); // not now: it has to be turned off and on
         return Knock.Other;
     }
 
@@ -744,6 +800,9 @@ internal sealed class PairingGuard : IDisposable
         public DateTime NextKnock { get; set; } = DateTime.UtcNow + plan.InitialWait;
 
         public DateTime Started { get; } = DateTime.UtcNow;
+
+        /// <summary>The phase shown in the status window; None: nothing was shown (or it has been taken back).</summary>
+        public KeyboardPhase Phase { get; set; }
 
         /// <summary>The device asked to pair although Windows has a key for it: that key is useless.</summary>
         public volatile bool KeyLost;

@@ -60,7 +60,7 @@ internal sealed class RemapHelper : IDisposable
         try
         {
             string exe = Environment.ProcessPath ?? throw new InvalidOperationException("Unknown executable path.");
-            int pid = CreateProcessInSession(exe, $"\"{exe}\" {HelperArgument}", session);
+            int pid = CreateProcessInSession(exe, $"\"{exe}\" {HelperArgument}", session, @"winsta0\default");
             _process = Process.GetProcessById(pid);
             _session = session;
             Log.Info($"Key remapper started in session {session} (process {pid})");
@@ -109,8 +109,14 @@ internal sealed class RemapHelper : IDisposable
         }
     }
 
-    /// <summary>Starts a process with this service's (SYSTEM) token in another session, on its default desktop.</summary>
-    private static int CreateProcessInSession(string exe, string commandLine, uint session)
+    /// <summary>The session of the physical console; 0xFFFFFFFF if there is none.</summary>
+    public static uint ActiveConsoleSession => WTSGetActiveConsoleSessionId();
+
+    /// <summary>
+    /// Starts a process with this service's (SYSTEM) token in another session, on the given desktop
+    /// (<c>winsta0\default</c>: the user's desktop; <c>winsta0\winlogon</c>: the sign-in and lock screens).
+    /// </summary>
+    public static int CreateProcessInSession(string exe, string commandLine, uint session, string desktop)
     {
         const uint TokenAllAccess = 0xF01FF;
         if (!OpenProcessToken(Process.GetCurrentProcess().Handle, TokenAllAccess, out var own))
@@ -132,7 +138,7 @@ internal sealed class RemapHelper : IDisposable
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 }
 
-                var startup = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>(), lpDesktop = @"winsta0\default" };
+                var startup = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>(), lpDesktop = desktop };
                 const uint CreateNoWindow = 0x08000000;
                 if (!CreateProcessAsUser(token, exe, commandLine, IntPtr.Zero, IntPtr.Zero, false, CreateNoWindow, IntPtr.Zero,
                         Path.GetDirectoryName(exe), ref startup, out var info))
