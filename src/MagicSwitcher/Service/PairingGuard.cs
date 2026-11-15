@@ -230,6 +230,13 @@ internal sealed class PairingGuard : IDisposable
                 }
             }
 
+            if (!state.Known && DateTime.UtcNow - session.Started < TimeSpan.FromSeconds(60))
+            {
+                // The Bluetooth stack is still starting (right after boot): nothing can be told or done yet.
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                continue;
+            }
+
             if (DateTime.UtcNow >= session.NextKnock)
             {
                 knocks++;
@@ -708,10 +715,12 @@ internal sealed class PairingGuard : IDisposable
 
         public static Plan For(ServiceTrigger trigger) => trigger switch
         {
-            // After boot or wake the keyboard reconnects by itself within seconds: do not disturb it.
+            // After boot or wake the keyboard reconnects by itself within seconds: give it a moment. The wait used to be
+            // 45 s, when a knock could cost a good pairing; the key test does not touch the pairing, and a keyboard that
+            // another host took must be noticed soon after it is turned on.
             ServiceTrigger.Startup or ServiceTrigger.Resume =>
-                new(TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(10), TimeSpan.FromSeconds(60)),
-            _ => new(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(60)),
+                new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(10), TimeSpan.FromSeconds(60)),
+            _ => new(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(60)),
         };
 
         /// <summary>The tray waits for the answer, so it only needs a short confirmation.</summary>

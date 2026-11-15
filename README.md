@@ -109,7 +109,7 @@ The optional Windows service fixes that. Install it in **Settings → Background
 (one administrator confirmation) and check **Restore at startup and sign-in** for the keyboard. The service:
 
 - reacts to events: Windows startup, sign-in, unlock, wake from sleep, the display turning on, and **Connect** in the tray;
-- first gives the keyboard time to reconnect by itself (45 seconds after startup or wake, 15 seconds after the other
+- first gives the keyboard time to reconnect by itself (10 seconds after startup or wake, 5 seconds after the other
   events, none for **Connect**), then watches it for up to 10 minutes;
 - while Windows still has the key, the service **tests that key** every few seconds instead of guessing: it opens an
   RFCOMM connection that requires authentication. A keyboard has no RFCOMM service, so the connection fails either way
