@@ -12,6 +12,8 @@ internal enum LinkKeyTest
     Rejected,
     /// <summary>The device could not be reached, so nothing can be said.</summary>
     Unreachable,
+    /// <summary>Bluetooth is not up (right after boot or wake): the test could not even start.</summary>
+    NotReady,
 }
 
 internal static partial class NativeBluetooth
@@ -30,7 +32,14 @@ internal static partial class NativeBluetooth
     public static LinkKeyTest TestLinkKey(ulong address, out string details)
     {
         EnsureWinsock();
+        const int WsaENetDown = 10050;
         var (errorWithKey, secondsWithKey) = TryConnect(address, authenticate: true);
+        if (errorWithKey == WsaENetDown)
+        {
+            details = "Bluetooth is not ready yet (WSAENETDOWN)";
+            return LinkKeyTest.NotReady;
+        }
+
         if (GetState(address).Connected)
         {
             details = $"authenticated connection: error {errorWithKey} after {secondsWithKey:0.0} s, the link stays up";

@@ -233,7 +233,8 @@ internal sealed class PairingGuard : IDisposable
             else if (Types(device, state) && !(session.ForceFirstKnock && knocks == 0))
             {
                 workingSince ??= DateTime.UtcNow;
-                if (DateTime.UtcNow - workingSince >= TimeSpan.FromSeconds(3))
+                // Say so at once: someone at the sign-in screen is waiting for exactly this line.
+                if (DateTime.UtcNow - workingSince >= TimeSpan.FromSeconds(1))
                 {
                     Report(session, KeyboardPhase.Connected);
                 }
@@ -243,7 +244,7 @@ internal sealed class PairingGuard : IDisposable
                     return true;
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 continue;
             }
 
@@ -312,16 +313,17 @@ internal sealed class PairingGuard : IDisposable
                 session.NextKnock = DateTime.UtcNow + outcome switch
                 {
                     Knock.NoAnswer => session.Plan.PageInterval,
+                    Knock.NotReady => TimeSpan.FromSeconds(2),
                     Knock.Idle => TimeSpan.FromSeconds(10),
                     _ => session.Plan.Interval,
                 };
-                if (outcome is not (Knock.NoAnswer or Knock.Idle))
+                if (outcome is not (Knock.NoAnswer or Knock.Idle or Knock.NotReady))
                 {
                     session.QuietKnocks = 0;
                 }
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(unpaired ? 1 : 3), ct);
+            await Task.Delay(TimeSpan.FromSeconds(1), ct);
         }
 
         return Types(device, NativeBluetooth.GetState(device.Address));
@@ -383,6 +385,11 @@ internal sealed class PairingGuard : IDisposable
                 return await PairAnewAsync(device, attempt, report, ct);
             }
 
+            if (test.Result == LinkKeyTest.NotReady)
+            {
+                return Knock.NotReady; // nothing is known yet: say nothing, try again in a moment
+            }
+
             if (test.Result == LinkKeyTest.Unreachable)
             {
                 if (!quiet)
@@ -422,6 +429,10 @@ internal sealed class PairingGuard : IDisposable
                     {
                         await Task.Delay(1000, ct);
                         holds = Types(device, NativeBluetooth.GetState(device.Address));
+                        if (holds && held.Elapsed >= TimeSpan.FromSeconds(2))
+                        {
+                            report(KeyboardPhase.Connected); // do not make the user wait for the rest of the check
+                        }
                     }
 
                     if (holds)
@@ -498,6 +509,8 @@ internal sealed class PairingGuard : IDisposable
         NoAnswer,
         /// <summary>It answered a page but did not stay connected, and it was not taken over: nothing was changed.</summary>
         Idle,
+        /// <summary>Bluetooth is still starting: the key could not be tested.</summary>
+        NotReady,
         Other,
     }
 
