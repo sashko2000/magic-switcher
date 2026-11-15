@@ -111,20 +111,21 @@ The optional Windows service fixes that. Install it in **Settings → Background
 - reacts to events: Windows startup, sign-in, unlock, wake from sleep, the display turning on, and **Connect** in the tray;
 - first gives the keyboard time to reconnect by itself (45 seconds after startup or wake, 15 seconds after the other
   events, none for **Connect**), then watches it for up to 10 minutes;
-- while Windows still has the key, it only *pages* the keyboard (an uncached SDP query, which does not touch the
-  pairing) every few seconds. No answer means the keyboard is asleep, off or busy with the other host: nothing is
-  changed, and a sleeping keyboard reconnects by itself when you press a key;
-- a keyboard that answers but does not connect is either taken by another host or yours and idle (nobody has pressed a
-  key yet). For a few seconds after a page both look like a working keyboard (connected, paired, HID collections
-  present), so the service **tests the stored key**: it opens an RFCOMM connection that requires authentication. The
-  keyboard has no RFCOMM service and the connection fails either way, but with a good key the link stays up for a few
-  seconds, and with a rejected key Windows drops it at once (and keeps the useless pairing). The pairing is not touched
-  by the test;
-- key accepted: the keyboard is yours, it connects as soon as you press a key, and nothing is changed. Key rejected
-  (checked twice): the service removes the old pairing, pairs again with bonding (`BluetoothAuthenticateDeviceEx`),
-  answers the pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no dialog appears, and enables the HID
-  service. Waiting for Windows to drop the rejected key would take too long: the keyboard accepts a new pairing only
-  for a short while after it is turned on;
+- while Windows still has the key, the service **tests that key** every few seconds instead of guessing: it opens an
+  RFCOMM connection that requires authentication. A keyboard has no RFCOMM service, so the connection fails either way
+  and the pairing is not touched, but what is left tells the cases apart:
+  - nothing answers — the keyboard is asleep, off or busy with the other host; a sleeping keyboard reconnects by itself
+    when you press a key;
+  - the link stays up — the key is accepted: the keyboard is yours and merely idle (after a restart it does not connect
+    until a key is pressed). Nothing is changed;
+  - Windows drops the link at once, while the same connection without authentication stays up — the key is rejected:
+    another host took the keyboard;
+- a rejected key (checked twice unless you clicked **Connect**), or a keyboard that itself asks to pair while Windows
+  still has a key for it: the service removes the old pairing, pairs again with bonding
+  (`BluetoothAuthenticateDeviceEx`), answers the pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no
+  dialog appears, and enables the HID service. Waiting for Windows to drop the rejected key would take too long: the
+  keyboard accepts a new pairing only for a short while after it is turned on. From **Connect** to typing takes about
+  15 seconds;
 - it never reinstalls the HID service of a keyboard that may be asleep: the failed first HID connection would make
   Windows delete a good pairing;
 - keeps watching until the keyboard has worked for a minute without interruption;
