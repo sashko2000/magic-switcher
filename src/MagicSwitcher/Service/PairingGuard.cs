@@ -418,6 +418,11 @@ internal sealed class PairingGuard : IDisposable
                         break;
                     }
 
+                    if (test.Result == LinkKeyTest.Accepted && waited.Elapsed >= TimeSpan.FromSeconds(3))
+                    {
+                        report(KeyboardPhase.Idle); // it is not connecting by itself: tell the user to press a key
+                    }
+
                     await Task.Delay(1000, ct);
                 }
 
