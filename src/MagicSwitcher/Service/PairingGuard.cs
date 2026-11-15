@@ -288,7 +288,7 @@ internal sealed class PairingGuard : IDisposable
                 bool lastResort = session.RequestedAt is { } requested && DateTime.UtcNow - requested >= TimeSpan.FromSeconds(20);
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
                     session.Plan.SelfConnectWait, session.RequestedAt is not null, lastResort, () => session.KeyLost,
-                    phase => Report(session, phase), quiet: session.QuietKnocks++ % 12 != 0, ct);
+                    phase => Report(session, phase), quiet: session.QuietKnocks % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
                     AfterPairing?.Invoke();
@@ -317,10 +317,13 @@ internal sealed class PairingGuard : IDisposable
                     Knock.Idle => TimeSpan.FromSeconds(10),
                     _ => session.Plan.Interval,
                 };
-                if (outcome is not (Knock.NoAnswer or Knock.Idle or Knock.NotReady))
+                // Knocks in a row that change nothing are logged once in 12; one that learned nothing does not count.
+                session.QuietKnocks = outcome switch
                 {
-                    session.QuietKnocks = 0;
-                }
+                    Knock.NoAnswer or Knock.Idle => session.QuietKnocks + 1,
+                    Knock.NotReady => session.QuietKnocks,
+                    _ => 0,
+                };
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1), ct);

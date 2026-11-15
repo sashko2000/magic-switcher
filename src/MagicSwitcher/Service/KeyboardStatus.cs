@@ -34,22 +34,33 @@ internal static class KeyboardStatus
     {
         lock (Sync)
         {
-            try
+            // The status window reads the file twice a second: a collision is retried.
+            for (int attempt = 1; ; attempt++)
             {
-                if (phase == KeyboardPhase.None)
+                try
                 {
-                    File.Delete(FilePath);
+                    if (phase == KeyboardPhase.None)
+                    {
+                        File.Delete(FilePath);
+                        return;
+                    }
+
+                    Directory.CreateDirectory(AppPaths.MachineDataDirectory);
+                    string temp = FilePath + ".tmp";
+                    File.WriteAllText(temp, $"{phase}|{name}");
+                    File.Move(temp, FilePath, overwrite: true);
                     return;
                 }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (attempt >= 5)
+                    {
+                        Log.Info($"Status file: {ex.Message}");
+                        return;
+                    }
 
-                Directory.CreateDirectory(AppPaths.MachineDataDirectory);
-                string temp = FilePath + ".tmp";
-                File.WriteAllText(temp, $"{phase}|{name}");
-                File.Move(temp, FilePath, overwrite: true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Log.Info($"Status file: {ex.Message}");
+                    Thread.Sleep(100);
+                }
             }
         }
     }
@@ -59,7 +70,15 @@ internal static class KeyboardStatus
     {
         try
         {
-            string[] parts = File.ReadAllText(FilePath).Split('|', 2);
+            // Share everything, so that reading never keeps the service from replacing or deleting the file.
+            string text;
+            using (var stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream))
+            {
+                text = reader.ReadToEnd();
+            }
+
+            string[] parts = text.Split('|', 2);
             if (parts.Length != 2 || !Enum.TryParse<KeyboardPhase>(parts[0], out var phase) || phase == KeyboardPhase.None)
             {
                 return null;

@@ -121,17 +121,22 @@ The optional Windows service fixes that. Install it in **Settings → Background
     until a key is pressed). Nothing is changed;
   - Windows drops the link at once, while the same connection without authentication stays up — the key is rejected:
     another host took the keyboard;
-- a rejected key (checked twice unless you clicked **Connect**), or a keyboard that itself asks to pair while Windows
-  still has a key for it: the service removes the old pairing, pairs again with bonding
+- key rejected and you clicked **Connect**: the service removes the old pairing, pairs again with bonding
   (`BluetoothAuthenticateDeviceEx`), answers the pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no
   dialog appears, and enables the HID service. Waiting for Windows to drop the rejected key would take too long: the
   keyboard accepts a new pairing only for a short while after it is turned on. From **Connect** to typing takes about
   15 seconds;
+- key rejected and nobody asked (startup, sign-in, wake): the service only says so on the sign-in screen — “was used
+  by another device, turn it off and on” — and keeps the pairing. When the keyboard is turned on again, the next key
+  test makes it ask for a new pairing, and that request is the proof: the service then pairs anew as above. Nothing
+  is removed on the strength of one test;
+- the test means something only on a fresh link (for several seconds after any connection Windows reuses the link and
+  does not authenticate again), so tests are at least 15 seconds apart;
 - it never reinstalls the HID service of a keyboard that may be asleep: the failed first HID connection would make
   Windows delete a good pairing;
 - keeps watching until the keyboard has worked for a minute without interruption;
 - **tells you what is going on** on the sign-in and lock screens, where the tray icon cannot: a small status line at
-  the bottom of the screen says “not connected — press a key; if another device used it, turn it off and on”,
+  the bottom of the screen says “not connected — press any key; if it does not connect within a few seconds, turn it off and on”,
   “pairing… keep it on” or “connected”. Without it you cannot tell whether to switch the keyboard again or to wait.
   The line is display only (it takes no keyboard or mouse input) and appears only while the keyboard does not work;
 - never knocks outside these events: when you hand the keyboard to a phone on purpose, it is left alone. Every event,

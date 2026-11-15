@@ -18,6 +18,7 @@ internal sealed class StatusOverlayForm : Form
     private readonly DateTime _started = DateTime.UtcNow;
     private int _missing;
     private string _shown = "";
+    private DateTime? _connectedAt;
 
     public StatusOverlayForm()
     {
@@ -77,6 +78,22 @@ internal sealed class StatusOverlayForm : Form
             return;
         }
 
+        // "Connected" is the last word: close a few seconds later even if the service does not clear the status.
+        if (status.Value.Phase == KeyboardPhase.Connected)
+        {
+            _connectedAt ??= DateTime.UtcNow;
+            if (DateTime.UtcNow - _connectedAt >= TimeSpan.FromSeconds(5))
+            {
+                _timer.Stop();
+                Close();
+                return;
+            }
+        }
+        else
+        {
+            _connectedAt = null;
+        }
+
         _missing = 0;
         string text = Describe(status.Value.Phase, status.Value.Name);
         if (text != _shown)
@@ -98,7 +115,9 @@ internal sealed class StatusOverlayForm : Form
     private static string Describe(KeyboardPhase phase, string name) => phase switch
     {
         KeyboardPhase.Waiting => Strings.OverlayWaiting(name),
-        KeyboardPhase.Idle => Strings.OverlayIdle(name),
+        // The key test can take a keyboard that another host took for an idle one of ours, so the advice is the same:
+        // press a key, and if that does not help, turn it off and on.
+        KeyboardPhase.Idle => Strings.OverlayWaiting(name),
         KeyboardPhase.PowerCycle => Strings.OverlayPowerCycle(name),
         KeyboardPhase.Pairing => Strings.OverlayPairing(name),
         KeyboardPhase.Connecting => Strings.OverlayConnecting(name),

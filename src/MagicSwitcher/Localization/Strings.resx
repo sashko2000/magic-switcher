@@ -475,10 +475,7 @@
     <value>Connected to this computer. To reconnect it anyway, use Troubleshooting.</value>
   </data>
   <data name="OverlayWaiting" xml:space="preserve">
-    <value>{0} is not connected. Press any key on it and wait a few seconds. If another device used it, turn it off and on.</value>
-  </data>
-  <data name="OverlayIdle" xml:space="preserve">
-    <value>{0} is on: press any key on it and wait a few seconds for it to connect.</value>
+    <value>{0} is not connected. Press any key on it. If it does not connect within a few seconds, turn it off and on.</value>
   </data>
   <data name="OverlayPairing" xml:space="preserve">
     <value>Pairing {0}… Keep it on, do not turn it off.</value>
