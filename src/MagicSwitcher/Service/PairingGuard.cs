@@ -29,6 +29,9 @@ internal sealed class PairingGuard : IDisposable
     private static readonly TimeSpan PairingInterval = TimeSpan.FromSeconds(5);
     private const uint WmApp = 0x8000;
 
+    /// <summary>Silent pages in a row (15-20 s) after which a keyboard that answers again counts as just turned on or woken.</summary>
+    private const int SilentPagesBeforeTakeOver = 2;
+
     private readonly Thread _loop;
     private uint _loopThreadId;
     private readonly ManualResetEventSlim _loopReady = new();
@@ -230,8 +233,14 @@ internal sealed class PairingGuard : IDisposable
                 knocks++;
                 session.Report(knocks == 1 ? "Connecting…" : $"Connecting… (attempt {knocks})");
                 // Force only when Windows shows it connected while it does not type: then it is reachable for sure.
+                // An awake keyboard that does not stay connected is either taken by another host or ours and idle (nobody
+                // pressed a key yet): from here both look the same, and removing the pairing of an idle keyboard of ours
+                // breaks it until it is turned off and on. So take it over only when the user asked for it in the tray,
+                // or when it has just come back after being silent (off or asleep): a keyboard of ours that was just
+                // turned on or woken connects by itself within seconds.
+                bool mayTakeOver = session.Plan.TakeOverAtOnce || session.SilentPages >= SilentPagesBeforeTakeOver;
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
-                    session.Plan.SelfConnectWait, ct);
+                    session.Plan.SelfConnectWait, mayTakeOver, quiet: session.QuietKnocks++ % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
                     AfterPairing?.Invoke();
@@ -240,7 +249,17 @@ internal sealed class PairingGuard : IDisposable
                 session.LastKnock = DateTime.UtcNow;
                 // No answer changed nothing, so page again soon (the user may be turning the keyboard on right now);
                 // after anything else give Windows time to connect.
-                session.NextKnock = DateTime.UtcNow + (outcome == Knock.NoAnswer ? session.Plan.PageInterval : session.Plan.Interval);
+                session.NextKnock = DateTime.UtcNow + outcome switch
+                {
+                    Knock.NoAnswer => session.Plan.PageInterval,
+                    Knock.Idle => TimeSpan.FromSeconds(5),
+                    _ => session.Plan.Interval,
+                };
+                session.SilentPages = outcome == Knock.NoAnswer ? session.SilentPages + 1 : 0;
+                if (outcome is not (Knock.NoAnswer or Knock.Idle))
+                {
+                    session.QuietKnocks = 0;
+                }
             }
 
             await Task.Delay(TimeSpan.FromSeconds(unpaired ? 1 : 3), ct);
@@ -261,7 +280,7 @@ internal sealed class PairingGuard : IDisposable
     /// pairing, and the keyboard refuses a new one until it is turned off and on.</para>
     /// </summary>
     private static async Task<Knock> KnockAsync(GuardedDevice device, DeviceState state, int attempt, bool force,
-        TimeSpan selfConnectWait, CancellationToken ct)
+        TimeSpan selfConnectWait, bool mayTakeOver, bool quiet, CancellationToken ct)
     {
         string name = Name(device);
         if (state.Known && state.Paired)
@@ -271,8 +290,12 @@ internal sealed class PairingGuard : IDisposable
                 bool? answered = await PageAsync(device.Address, ct);
                 if (answered != true)
                 {
-                    Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer to a page " +
-                             $"({(answered is null ? "unknown" : "asleep, off or away")}): keeping the pairing, waiting for it to wake");
+                    if (!quiet)
+                    {
+                        Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer to a page " +
+                                 $"({(answered is null ? "unknown" : "asleep, off or away")}): keeping the pairing, waiting for it to wake");
+                    }
+
                     return Knock.NoAnswer;
                 }
 
@@ -310,7 +333,21 @@ internal sealed class PairingGuard : IDisposable
                         return Knock.Other;
                     }
 
-                    Log.Info($"[Guard] '{name}' knock {attempt}: answered a page, but the connection dropped after {held.Elapsed.TotalSeconds:0} s");
+                    if (mayTakeOver || !quiet)
+                    {
+                        Log.Info($"[Guard] '{name}' knock {attempt}: answered a page, but the connection dropped after {held.Elapsed.TotalSeconds:0} s");
+                    }
+                }
+
+                if (!mayTakeOver)
+                {
+                    if (!quiet)
+                    {
+                        Log.Info($"[Guard] '{name}' knock {attempt}: awake but not connected — ours and idle (press a key), or taken by " +
+                                 "another host (turn it off for 20 s and on): keeping the pairing");
+                    }
+
+                    return Knock.Idle;
                 }
             }
 
@@ -362,6 +399,8 @@ internal sealed class PairingGuard : IDisposable
         Paired,
         /// <summary>Windows has the key, but the device did not answer a page: nothing was changed.</summary>
         NoAnswer,
+        /// <summary>It answered a page but did not stay connected, and it was not taken over: nothing was changed.</summary>
+        Idle,
         Other,
     }
 
@@ -600,9 +639,15 @@ internal sealed class PairingGuard : IDisposable
         /// keyboard that another host took accepts a new pairing only for a short while after it is turned on, so it
         /// has to be noticed within seconds — also at the sign-in screen.
         /// </summary>
-        public TimeSpan PageInterval { get; init; } = TimeSpan.FromSeconds(5);
+        public TimeSpan PageInterval { get; init; } = TimeSpan.FromSeconds(3);
 
-        /// <summary>How long a device that answered a page gets to connect by itself before HID is reinstalled.</summary>
+        /// <summary>
+        /// Take over an awake keyboard that does not stay connected without waiting for it to go silent first:
+        /// only when the user asked for the keyboard in the tray.
+        /// </summary>
+        public bool TakeOverAtOnce { get; init; }
+
+        /// <summary>How long a device that answered a page gets to connect by itself.</summary>
         public TimeSpan SelfConnectWait { get; init; } = TimeSpan.FromSeconds(10);
 
         public static Plan For(ServiceTrigger trigger) => trigger switch
@@ -617,6 +662,7 @@ internal sealed class PairingGuard : IDisposable
         public static Plan Request(TimeSpan duration) => new(TimeSpan.Zero, TimeSpan.FromSeconds(10), duration, TimeSpan.FromSeconds(10))
         {
             // The user is waiting and may be turning the keyboard off and on right now: notice it within seconds.
+            TakeOverAtOnce = true,
             PageInterval = TimeSpan.FromSeconds(2),
             SelfConnectWait = TimeSpan.FromSeconds(5),
         };
@@ -634,6 +680,12 @@ internal sealed class PairingGuard : IDisposable
 
         public DateTime Started { get; } = DateTime.UtcNow;
 
+        /// <summary>Pages in a row that the device did not answer.</summary>
+        public int SilentPages { get; set; }
+
+        /// <summary>Knocks in a row that changed nothing: only every 12th is logged.</summary>
+        public int QuietKnocks { get; set; }
+
         public DateTime LastKnock { get; set; } = DateTime.MinValue;
 
         /// <summary>Knock once even if Windows reports the device as working (the tray says it does not type).</summary>
@@ -647,6 +699,7 @@ internal sealed class PairingGuard : IDisposable
             {
                 Interval = TimeSpan.FromSeconds(10),
                 StableFor = TimeSpan.FromSeconds(10),
+                TakeOverAtOnce = true,
                 PageInterval = TimeSpan.FromSeconds(2),
                 SelfConnectWait = TimeSpan.FromSeconds(5),
             };

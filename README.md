@@ -70,8 +70,7 @@ From then on:
 - to use the keyboard here after another device, click **Connect “Magic Keyboard”** in the tray menu (or double-click
   the icon) and turn the keyboard off and on (if it was only asleep, pressing a key is enough);
 - after a restart, or when the PC is locked: if the keyboard stayed with this PC, just press a key; if another device
-  used it meanwhile, turn it off and on once the sign-in screen has been up for about half a minute. No dialog, even
-  before you sign in.
+  used it meanwhile, turn it off, wait about 20 seconds and turn it on. No dialog, even before you sign in.
 
 ## How it compares to the alternatives
 
@@ -115,20 +114,26 @@ The optional Windows service fixes that. Install it in **Settings → Background
 - while Windows still has the key, it only *pages* the keyboard (an uncached SDP query, which does not touch the
   pairing) every few seconds. No answer means the keyboard is asleep, off or busy with the other host: nothing is
   changed, and a sleeping keyboard reconnects by itself when you press a key;
-- a keyboard that answers but does not stay connected was taken by another host. For a few seconds it looks exactly
-  like a working one (connected, paired, HID collections present) and then drops, and Windows keeps the useless key.
-  Waiting for Windows to notice takes too long — the keyboard accepts a new pairing only for a short while after it is
-  turned on — so the service removes the old pairing itself, pairs again with bonding (`BluetoothAuthenticateDeviceEx`),
-  answers the pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no dialog appears, and enables the
-  HID service. From turning the keyboard on to typing takes 10–20 seconds;
+- a keyboard that answers but does not stay connected is either taken by another host or yours and idle (nobody has
+  pressed a key yet). From the PC both look the same — for a few seconds after a page even a keyboard with another
+  host's key looks like a working one (connected, paired, HID collections present) and then drops, and Windows keeps
+  the useless key — so the service takes the keyboard over only when it is sure:
+  - you clicked **Connect** in the tray, or
+  - the keyboard was silent (off or asleep) for 15–20 seconds and then answered again without connecting: a keyboard
+    of yours that was just turned on or woken connects by itself within seconds.
+
+  Taking over means: remove the old pairing, pair again with bonding (`BluetoothAuthenticateDeviceEx`), answer the
+  pairing request itself (`BluetoothRegisterForAuthenticationEx`) so no dialog appears, and enable the HID service.
+  Waiting for Windows to drop the rejected key would take too long: the keyboard accepts a new pairing only for a
+  short while after it is turned on. From turning the keyboard on to typing takes 10–20 seconds;
 - it never reinstalls the HID service of a keyboard that may be asleep: the failed first HID connection would make
   Windows delete a good pairing;
 - keeps watching until the keyboard has worked for a minute without interruption;
 - never knocks outside these events: when you hand the keyboard to a phone on purpose, it is left alone. Every event,
   the keyboard state and the service's decision are written to the service log.
 
-After another host used the keyboard, turn it off and on once: it accepts a new host only shortly after it is turned
-on. If it does not start typing within 20 seconds, turn it off and on again.
+After another host used the keyboard: with **Connect** in the tray, turn it off and on once; on the sign-in screen,
+turn it off, wait about 20 seconds and turn it on. It accepts a new host only shortly after it is turned on.
 
 > 🔒 Automatic confirmation skips the pairing code check. The service confirms only devices you selected and only while
 > it is restoring them after one of the events above; at any other time Windows asks as usual.
@@ -315,8 +320,8 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.4.2
+git push origin v1.4.2
 ```
 
 ## Files
