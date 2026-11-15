@@ -235,7 +235,7 @@ internal sealed class PairingGuard : IDisposable
                 // it still does not work 20 seconds later.
                 bool lastResort = session.RequestedAt is { } requested && DateTime.UtcNow - requested >= TimeSpan.FromSeconds(20);
                 var outcome = await KnockAsync(device, state, knocks, force: session.ForceFirstKnock && knocks == 1 && state.Connected,
-                    session.Plan.SelfConnectWait, lastResort, quiet: session.QuietKnocks++ % 12 != 0, ct);
+                    session.Plan.SelfConnectWait, session.RequestedAt is not null, lastResort, quiet: session.QuietKnocks++ % 12 != 0, ct);
                 if (outcome == Knock.Paired)
                 {
                     AfterPairing?.Invoke();
@@ -275,7 +275,7 @@ internal sealed class PairingGuard : IDisposable
     /// pairing, and the keyboard refuses a new one until it is turned off and on.</para>
     /// </summary>
     private static async Task<Knock> KnockAsync(GuardedDevice device, DeviceState state, int attempt, bool force,
-        TimeSpan selfConnectWait, bool lastResort, bool quiet, CancellationToken ct)
+        TimeSpan selfConnectWait, bool requested, bool lastResort, bool quiet, CancellationToken ct)
     {
         string name = Name(device);
         if (state.Known && state.Paired)
@@ -289,30 +289,33 @@ internal sealed class PairingGuard : IDisposable
                 return Knock.Other;
             }
 
-            bool? answered = await PageAsync(device.Address, ct);
-            if (answered != true)
+            // Is it awake, and is it still ours? An awake keyboard that does not connect is either taken by another host
+            // or ours and idle (nobody pressed a key yet), and for a few seconds after any connection attempt both look
+            // like a working one (connected, paired, HID collections present). The stored key tells them apart.
+            // The test only means something on a link it brings up itself, so let a leftover link drop first.
+            string details = "";
+            var test = await TestKeyAsync(device, ct);
+            if (test.Result == LinkKeyTest.Rejected && !requested)
+            {
+                // "Rejected" costs the pairing: when nobody asked for the keyboard, make sure.
+                var first = test;
+                test = await TestKeyAsync(device, ct);
+                Log.Info($"[Guard] '{name}' knock {attempt}: key test {first.Result} ({first.Details}); again: {test.Result}");
+            }
+
+            details = test.Details;
+            if (test.Result == LinkKeyTest.Unreachable)
             {
                 if (!quiet)
                 {
-                    Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer to a page " +
-                             $"({(answered is null ? "unknown" : "asleep, off or away")}): keeping the pairing, waiting for it to wake");
+                    Log.Info($"[Guard] '{name}' knock {attempt} ({state}): no answer (asleep, off or away): " +
+                             $"keeping the pairing, waiting for it to wake ({details})");
                 }
 
                 return Knock.NoAnswer;
             }
 
-            // It is awake. Is it still ours? An awake keyboard that does not connect is either taken by another host or
-            // ours and idle (nobody pressed a key yet), and for a few seconds after a page both look like a working one
-            // (connected, paired, HID collections present). The stored key tells them apart — twice, to be sure,
-            // because the answer "rejected" costs the pairing.
-            string details = "";
-            var test = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
-            if (test == LinkKeyTest.Rejected)
-            {
-                test = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
-            }
-
-            bool takeOver = test == LinkKeyTest.Rejected;
+            bool takeOver = test.Result == LinkKeyTest.Rejected;
             if (takeOver)
             {
                 Log.Info($"[Guard] '{name}' knock {attempt}: awake, but it rejects our key (taken by another host): {details}");
@@ -349,13 +352,12 @@ internal sealed class PairingGuard : IDisposable
                     }
                 }
 
-                if (!(lastResort && test == LinkKeyTest.Accepted))
+                if (!lastResort)
                 {
                     if (!quiet)
                     {
-                        Log.Info($"[Guard] '{name}' knock {attempt}: awake but not connected, " + (test == LinkKeyTest.Accepted
-                            ? $"and it accepts our key — it is ours and idle (press a key): keeping the pairing ({details})"
-                            : $"and the key could not be tested: keeping the pairing ({details})"));
+                        Log.Info($"[Guard] '{name}' knock {attempt}: awake but not connected, and it accepts our key — " +
+                                 $"it is ours and idle (press a key): keeping the pairing ({details})");
                     }
 
                     return Knock.Idle;
@@ -408,6 +410,22 @@ internal sealed class PairingGuard : IDisposable
         /// <summary>It answered a page but did not stay connected, and it was not taken over: nothing was changed.</summary>
         Idle,
         Other,
+    }
+
+    /// <summary>
+    /// Tests the stored link key (<see cref="NativeBluetooth.TestLinkKey"/>) on a fresh link: on a link that is already
+    /// up (left by an earlier attempt) Windows does not authenticate again, and a rejected key looks accepted.
+    /// </summary>
+    private static async Task<(LinkKeyTest Result, string Details)> TestKeyAsync(GuardedDevice device, CancellationToken ct)
+    {
+        for (int i = 0; i < 16 && NativeBluetooth.GetState(device.Address).Connected; i++)
+        {
+            await Task.Delay(500, ct);
+        }
+
+        string details = "";
+        var result = await Task.Run(() => NativeBluetooth.TestLinkKey(device.Address, out details), ct);
+        return (result, details);
     }
 
     /// <summary>
