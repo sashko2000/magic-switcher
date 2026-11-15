@@ -173,4 +173,5 @@ internal static class Strings
     public static string OverlayPairing(object? arg0) => Format(nameof(OverlayPairing), arg0);
     public static string OverlayConnecting(object? arg0) => Format(nameof(OverlayConnecting), arg0);
     public static string OverlayConnected(object? arg0) => Format(nameof(OverlayConnected), arg0);
+    public static string OverlayPowerCycle(object? arg0) => Format(nameof(OverlayPowerCycle), arg0);
 }

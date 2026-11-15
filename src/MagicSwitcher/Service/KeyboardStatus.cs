@@ -11,6 +11,8 @@ internal enum KeyboardPhase
     Waiting,
     /// <summary>It is awake and still ours, but idle: it connects when a key is pressed.</summary>
     Idle,
+    /// <summary>Another host took it, and it does not accept a new pairing now: it has to be turned off and on.</summary>
+    PowerCycle,
     /// <summary>Pairing it again: it must stay on.</summary>
     Pairing,
     /// <summary>Paired, the keyboard service is starting.</summary>
@@ -58,9 +60,14 @@ internal static class KeyboardStatus
         try
         {
             string[] parts = File.ReadAllText(FilePath).Split('|', 2);
-            return parts.Length == 2 && Enum.TryParse<KeyboardPhase>(parts[0], out var phase) && phase != KeyboardPhase.None
-                ? (phase, parts[1])
-                : null;
+            if (parts.Length != 2 || !Enum.TryParse<KeyboardPhase>(parts[0], out var phase) || phase == KeyboardPhase.None)
+            {
+                return null;
+            }
+
+            // The name ends up on the sign-in screen: keep it a short, single-line device name whatever the file says.
+            string name = new(parts[1].Where(c => !char.IsControl(c)).Take(64).ToArray());
+            return (phase, name);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

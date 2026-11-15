@@ -489,4 +489,7 @@
   <data name="OverlayConnected" xml:space="preserve">
     <value>{0} підключена.</value>
   </data>
+  <data name="OverlayPowerCycle" xml:space="preserve">
+    <value>{0} використовувалася з іншим пристроєм. Вимкніть і ввімкніть її.</value>
+  </data>
 </root>

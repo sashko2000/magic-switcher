@@ -99,6 +99,7 @@ internal sealed class StatusOverlayForm : Form
     {
         KeyboardPhase.Waiting => Strings.OverlayWaiting(name),
         KeyboardPhase.Idle => Strings.OverlayIdle(name),
+        KeyboardPhase.PowerCycle => Strings.OverlayPowerCycle(name),
         KeyboardPhase.Pairing => Strings.OverlayPairing(name),
         KeyboardPhase.Connecting => Strings.OverlayConnecting(name),
         KeyboardPhase.Connected => Strings.OverlayConnected(name),
