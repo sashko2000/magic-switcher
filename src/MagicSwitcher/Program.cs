@@ -48,7 +48,7 @@ internal static class Program
 
         if (Has(args, ServiceInstaller.UninstallArgument))
         {
-            return ServiceInstaller.UninstallElevated();
+            return ServiceInstaller.UninstallElevated(keepData: Has(args, ServiceInstaller.KeepDataArgument));
         }
 
         if (Has(args, RemapHelper.HelperArgument))

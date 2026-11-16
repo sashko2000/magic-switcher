@@ -40,8 +40,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext()
     {
+        bool firstRun = !File.Exists(SettingsStore.FilePath);
         _settings = SettingsStore.Load();
         AppLanguage.Apply(_settings.Language);
+        if (ServiceInstaller.RunsFromInstallDirectory)
+        {
+            AutoStart.FollowInstalledCopy(firstRun);
+        }
 
         _menu = new ContextMenuStrip();
         // ContextMenuStrip is a Control; once it is created, WindowsFormsSynchronizationContext is installed.

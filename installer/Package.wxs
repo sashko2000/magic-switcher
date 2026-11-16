@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MagicSwitcher installer (MSI, per machine, x64).
+
+  It installs the published app folder to %ProgramFiles%\MagicSwitcher, the same place the app's own
+  "Install service" uses, adds a Start menu shortcut, installs and starts the background service and starts the app.
+  A newer MSI upgrades in place: the old version is removed and the new one installed in one go; settings
+  (%AppData%\MagicSwitcher) and the service configuration (%ProgramData%\MagicSwitcher) are kept.
+
+  The service is not described in the MSI tables: MagicSwitcher.exe installs and removes it itself
+  (the install-service and uninstall-service arguments), exactly as it does without the installer, so there is one
+  implementation. The custom actions below only stop everything before files are replaced and call that code.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="MagicSwitcher"
+           Manufacturer="Oleksandr Postoliuk"
+           Version="$(var.Version)"
+           UpgradeCode="6B0C1E8E-3C0B-4A4F-9D55-5A1C7E2B9F31"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <SummaryInformation Description="Apple Magic Keyboard on Windows: tray app and background service" />
+
+    <!-- A newer version replaces the installed one; an older MSI refuses to run over a newer installation. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of MagicSwitcher is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/sashko2000/magic-switcher" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/sashko2000/magic-switcher/issues" />
+    <!-- The files are closed by the custom actions below; without this Windows Installer would ask to close the app
+         (or ask for a reboot) before they get the chance. -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <!-- Replace every file, whatever its version: the folder may hold a build installed by the app itself. -->
+    <Property Id="REINSTALLMODE" Value="amus" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="MagicSwitcher" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="System64Folder" />
+
+    <Feature Id="Main" Title="MagicSwitcher">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!-- Everything from the published folder, subfolders (languages) included. -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.AppDir)\**" />
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
+      <Shortcut Id="AppShortcut" Name="MagicSwitcher"
+                Description="Apple Magic Keyboard on Windows"
+                Target="[INSTALLFOLDER]MagicSwitcher.exe" WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\MagicSwitcher" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Before files are replaced or removed: stop the service (it stops its helpers), then close the tray app.
+         Deferred and not impersonated: they run as LocalSystem, invisibly. Errors are ignored: on a first
+         installation there is nothing to stop. -->
+    <CustomAction Id="StopService" Directory="System64Folder"
+                  ExeCommand="&quot;[System64Folder]net.exe&quot; stop MagicSwitcher"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="UninstallService" Directory="System64Folder"
+                  ExeCommand="&quot;[INSTALLFOLDER]MagicSwitcher.exe&quot; --uninstall-service --keep-data"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="CloseApp" Directory="System64Folder"
+                  ExeCommand="&quot;[System64Folder]taskkill.exe&quot; /F /IM MagicSwitcher.exe"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- After the files are in place: register and start the service. -->
+    <CustomAction Id="InstallService" Directory="System64Folder"
+                  ExeCommand="&quot;[INSTALLFOLDER]MagicSwitcher.exe&quot; --install-service"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- At the very end, as the user who started the installer: start the tray app. -->
+    <CustomAction Id="StartApp" Directory="System64Folder"
+                  ExeCommand="&quot;[INSTALLFOLDER]MagicSwitcher.exe&quot;"
+                  Execute="immediate" Impersonate="yes" Return="asyncNoWait" />
+
+    <!-- Uninstalling for good (not upgrading): remove the user's "start with Windows" entry. -->
+    <CustomAction Id="RemoveAutoStart" Directory="System64Folder"
+                  ExeCommand="&quot;[System64Folder]reg.exe&quot; delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v MagicSwitcher /f"
+                  Execute="immediate" Impersonate="yes" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="StopService" After="InstallInitialize" />
+      <Custom Action="UninstallService" After="StopService" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="CloseApp" After="UninstallService" />
+      <Custom Action="InstallService" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="RemoveAutoStart" After="InstallFinalize" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="StartApp" After="RemoveAutoStart" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

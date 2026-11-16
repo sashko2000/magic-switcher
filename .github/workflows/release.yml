@@ -32,11 +32,24 @@ jobs:
             -p:PublishSingleFile=false -p:DebugType=none -p:Version=$version -o publish/MagicSwitcher
           Compress-Archive -Path publish/MagicSwitcher -DestinationPath "MagicSwitcher-$version-win-x64.zip"
 
+      # The installer: the same folder as an MSI (installs to Program Files, sets up the service, upgrades in place).
+      - name: Build the installer (MSI)
+        continue-on-error: true # a broken installer build must not hold back the archive
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $appDir = Join-Path $PWD 'publish\MagicSwitcher'
+          dotnet build installer/MagicSwitcher.Installer.wixproj -c Release "-p:Version=$version" "-p:AppDir=$appDir"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $msi = Get-ChildItem installer/bin -Recurse -Filter *.msi | Select-Object -First 1
+          if (-not $msi) { throw 'The installer was not built.' }
+          Copy-Item $msi.FullName "MagicSwitcher-$version-win-x64.msi"
+
       - name: Create release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = $env:TAG.TrimStart('v')
-          gh release create $env:TAG "MagicSwitcher-$version-win-x64.zip" `
-            --title "MagicSwitcher $version" --generate-notes
+          $assets = @("MagicSwitcher-$version-win-x64.msi", "MagicSwitcher-$version-win-x64.zip") | Where-Object { Test-Path $_ }
+          gh release create $env:TAG @assets --title "MagicSwitcher $version" --generate-notes

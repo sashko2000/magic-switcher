@@ -35,9 +35,16 @@ Tested with Apple Magic Keyboard A2450 (2021); the Fn driver supports Magic Keyb
 
 ## Download
 
-Get the latest `MagicSwitcher-<version>-win-x64.zip` from the
-[Releases](../../releases) page, unzip the `MagicSwitcher` folder anywhere and run `MagicSwitcher.exe` in it
-(no installation and no .NET runtime needed).
+From the [Releases](../../releases) page get either:
+
+- **`MagicSwitcher-<version>-win-x64.msi`** — the installer. It installs the app to `Program Files\MagicSwitcher`, adds a
+  Start menu shortcut, installs the background service, starts the app and makes it start with Windows. To update,
+  just run the newer `.msi`: it replaces the installed version, and your settings are kept. Uninstall it in
+  Windows Settings → Apps;
+- **`MagicSwitcher-<version>-win-x64.zip`** — the portable version: unzip the `MagicSwitcher` folder anywhere and run
+  `MagicSwitcher.exe` in it; the background service is installed from the settings.
+
+No .NET runtime is needed for either.
 
 ### Windows or your antivirus may warn about it
 
@@ -62,7 +69,8 @@ an issue with the detection name.
 1. Pair the keyboard with Windows once (Settings → Bluetooth & devices → Add device; turn the keyboard off and on
    to make it visible).
 2. Start `MagicSwitcher.exe`, open **Settings** from the tray icon and choose your keyboard on the **Keyboard** tab.
-3. Keep **Restore at startup and sign-in** checked and click **Install service** (one administrator confirmation).
+3. Keep **Restore at startup and sign-in** checked. The installer has already installed the background service; with
+   the portable version click **Install service** (one administrator confirmation).
 4. Optionally, in **Apple Magic Keyboard**, click **Install driver**, choose the **top row** behavior and remap keys.
 5. Click **Save**.
 
@@ -151,7 +159,7 @@ on.
 The service also performs the actions that need administrator rights for the tray app (reinstalling device services,
 the Apple keyboard driver), so the app itself runs without them. It is installed to
 `%ProgramFiles%\MagicSwitcher` and runs as LocalSystem: a service must not start an executable that a normal user
-could replace. After updating the app, use **Update service** in the settings. Tested with Apple Magic Keyboard (A2450).
+could replace. After updating the portable app, use **Update service** in the settings (the installer does that itself). Tested with Apple Magic Keyboard (A2450).
 
 ## Fn key and top row
 
@@ -326,13 +334,23 @@ older Bluetooth Switcher service.
 
 ## Releasing
 
-Pushing a version tag builds the app on GitHub Actions and publishes a release with the archive
+Pushing a version tag builds the app on GitHub Actions and publishes a release with the installer and the archive
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
+
+The installer is a WiX project (`installer/`, MSI). To build it locally:
+
+```powershell
+dotnet publish src/MagicSwitcher -c Release -r win-x64 --self-contained true -p:DebugType=none -o publish\MagicSwitcher
+dotnet build installer -c Release -p:Version=1.5.1 -p:AppDir="$PWD\publish\MagicSwitcher"
+```
+
+The service is not described in the MSI tables: the installer calls `MagicSwitcher.exe --install-service` and
+`--uninstall-service`, the same code the portable version uses.
 
 ## Files
 
@@ -388,6 +406,7 @@ src/MagicSwitcher/
    └─ TrayIconFactory.cs          — icon drawn at runtime
 tools/InputProbe/                 — logs the order of keyboard hook, raw input and HID reports (used to design the remapper)
 tools/KeyProbe/                   — tests whether a paired keyboard still accepts the stored link key
+installer/                        — the MSI installer (WiX)
 ```
 
 ## License

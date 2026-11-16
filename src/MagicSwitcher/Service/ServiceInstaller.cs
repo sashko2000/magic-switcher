@@ -24,6 +24,17 @@ internal static class ServiceInstaller
     public const string InstallArgument = "--install-service";
     public const string UninstallArgument = "--uninstall-service";
 
+    /// <summary>With <see cref="UninstallArgument"/>: keep the service configuration (the installer passes it, also when upgrading).</summary>
+    public const string KeepDataArgument = "--keep-data";
+
+    /// <summary>
+    /// This process runs from the installation directory: the app was installed there by the installer (MSI), which
+    /// owns the files — or the service's own copy is running. Either way the files must not be removed from under it.
+    /// </summary>
+    public static bool RunsFromInstallDirectory =>
+        string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(AppContext.BaseDirectory)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(InstallDirectory)), StringComparison.OrdinalIgnoreCase);
+
     private const string DisplayName = "MagicSwitcher";
     private const string Description =
         "Restores the Bluetooth keyboards selected in MagicSwitcher at startup and sign-in (pairs them again without " +
@@ -122,7 +133,7 @@ internal static class ServiceInstaller
     }
 
     /// <summary>Runs in the elevated helper process. Returns 0 or a Win32 error code.</summary>
-    public static int UninstallElevated()
+    public static int UninstallElevated(bool keepData = false)
     {
         try
         {
@@ -135,8 +146,16 @@ internal static class ServiceInstaller
                 }
             });
 
-            DeleteWithRetry(InstallDirectory);
-            try { File.Delete(BluetoothService.ConfigPath); } catch { /* keep going */ }
+            if (!RunsFromInstallDirectory)
+            {
+                DeleteWithRetry(InstallDirectory); // the service's private copy of a portable app
+            }
+
+            if (!keepData)
+            {
+                try { File.Delete(BluetoothService.ConfigPath); } catch { /* keep going */ }
+            }
+
             Log.Info("Service removed");
             return 0;
         }

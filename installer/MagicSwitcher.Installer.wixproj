@@ -1,0 +1,24 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!-- The MSI installer. Build it after publishing the app to a folder:
+
+         dotnet publish src/MagicSwitcher -c Release -r win-x64 - -self-contained true -p:DebugType=none -o publish\MagicSwitcher
+         dotnet build installer -c Release -p:Version=1.5.1 -p:AppDir=C:\full\path\to\publish\MagicSwitcher
+
+       (write the two hyphens of "self-contained" together; XML comments cannot contain them).
+       The .msi appears under installer\bin. -->
+  <PropertyGroup>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <OutputName>MagicSwitcher-$(Version)-win-x64</OutputName>
+    <DefineConstants>Version=$(Version);AppDir=$(AppDir)</DefineConstants>
+    <!-- The ICE checks need the Windows Installer service, which build agents do not always have. -->
+    <SuppressValidation>true</SuppressValidation>
+  </PropertyGroup>
+
+  <Target Name="CheckAppDir" BeforeTargets="CoreCompile">
+    <Error Condition="'$(AppDir)' == '' Or !Exists('$(AppDir)\MagicSwitcher.exe')"
+           Text="Pass -p:AppDir=&lt;full path of the published app folder&gt; (it must contain MagicSwitcher.exe)." />
+  </Target>
+
+</Project>
