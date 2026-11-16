@@ -8,8 +8,8 @@ namespace MagicSwitcher.UI;
 internal sealed class MacroForm : Form
 {
     private readonly ListBox _list;
-    private readonly CheckBox _ctrl, _alt, _shift, _win, _signIn;
-    private readonly ComboBox _key;
+    private readonly CheckBox _ctrl, _alt, _shift, _win;
+    private readonly ComboBox _key, _where;
     private readonly TextBox _text;
     private readonly List<KeyMacro> _macros;
 
@@ -63,7 +63,10 @@ internal sealed class MacroForm : Form
 
         _text = new TextBox { Width = 440, MaxLength = KeyMacro.MaxTextLength };
         var tokens = new Label { Text = Strings.MacroTokens, AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(440, 0) };
-        _signIn = new CheckBox { Text = Strings.MacroSignIn, AutoSize = true };
+        _where = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 440 };
+        _where.Items.AddRange([Strings.MacroWhereSession, Strings.MacroWhereBoth, Strings.MacroWhereSignIn]);
+        _where.SelectedIndex = 0;
+        var whereNote = new Label { Text = Strings.MacroWhereNote, AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(440, 0) };
 
         var add = new Button { Text = Strings.MacroAdd, AutoSize = true };
         add.Click += (_, _) => AddOrReplace();
@@ -78,8 +81,10 @@ internal sealed class MacroForm : Form
         editor.Controls.Add(new Label { Text = Strings.MacroText, AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
         editor.Controls.Add(_text, 1, 1);
         editor.Controls.Add(tokens, 1, 2);
-        editor.Controls.Add(_signIn, 1, 3);
-        editor.Controls.Add(edit, 1, 4);
+        editor.Controls.Add(new Label { Text = Strings.MacroWhere, AutoSize = true, Anchor = AnchorStyles.Left }, 0, 3);
+        editor.Controls.Add(_where, 1, 3);
+        editor.Controls.Add(whereNote, 1, 4);
+        editor.Controls.Add(edit, 1, 5);
 
         var ok = new Button { Text = Strings.SettingsSave, AutoSize = true, DialogResult = DialogResult.OK };
         ok.Click += (_, _) => Result = _macros.ToList();
@@ -101,7 +106,9 @@ internal sealed class MacroForm : Form
     }
 
     public static string Describe(KeyMacro macro) =>
-        $"{macro.DescribeTrigger()} → {macro.Text}" + (macro.OnSignInScreen ? $"  ({Strings.MacroSignInShort})" : "");
+        $"{macro.DescribeTrigger()} → {macro.Text}" + (macro.OnSignInScreen
+            ? $"  ({(macro.InSession ? Strings.MacroSignInShort : Strings.MacroSignInOnlyShort)})"
+            : "");
 
     private void FillList(int select)
     {
@@ -133,7 +140,7 @@ internal sealed class MacroForm : Form
         _win.Checked = macro.Win;
         _key.SelectedItem = _key.Items.Cast<KeyItem>().FirstOrDefault(k => k.Key == macro.Key) ?? _key.Items[0];
         _text.Text = macro.Text;
-        _signIn.Checked = macro.OnSignInScreen;
+        _where.SelectedIndex = !macro.OnSignInScreen ? 0 : macro.InSession ? 1 : 2;
     }
 
     /// <summary>Adds the macro from the editor; one with the same key replaces the old one.</summary>
@@ -147,7 +154,8 @@ internal sealed class MacroForm : Form
             Shift = _shift.Checked,
             Win = _win.Checked,
             Text = _text.Text,
-            OnSignInScreen = _signIn.Checked,
+            OnSignInScreen = _where.SelectedIndex >= 1,
+            InSession = _where.SelectedIndex != 2,
         };
         if (!macro.IsValid)
         {

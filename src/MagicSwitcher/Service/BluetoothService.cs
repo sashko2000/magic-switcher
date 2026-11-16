@@ -212,7 +212,7 @@ internal sealed class BluetoothService
     {
         try
         {
-            _remapHelper.Update(_config.KeyMap.Count > 0 || _config.Macros.Count > 0 || AppleKeyboardDriver.IsInstalled, restart);
+            _remapHelper.Update(_config.KeyMap.Count > 0 || _config.Macros.Any(m => m.InSession) || AppleKeyboardDriver.IsInstalled, restart);
             _signInHelper.Update(_config.Macros.Any(m => m.OnSignInScreen), restart);
         }
         catch (Exception ex)

@@ -24,8 +24,11 @@ public sealed record KeyMacro
 
     public string Text { get; init; } = "";
 
-    /// <summary>Also works on the Windows sign-in and lock screens (the service runs a helper there).</summary>
+    /// <summary>Works on the Windows sign-in and lock screens (the service runs a helper there).</summary>
     public bool OnSignInScreen { get; init; }
+
+    /// <summary>Works in the user's session. False (with <see cref="OnSignInScreen"/>): only on the sign-in and lock screens.</summary>
+    public bool InSession { get; init; } = true;
 
     /// <summary>
     /// The function keys that reach Windows as plain keys from an Apple keyboard in either top row mode (F1/F2 are kept
@@ -41,6 +44,7 @@ public sealed record KeyMacro
     /// </summary>
     public bool IsValid =>
         Text.Length is > 0 and <= MaxTextLength
+        && (InSession || OnSignInScreen)
         && (FunctionKeys.Contains(Key) || (IsLetterOrDigit(Key) && (Ctrl || Alt || Win)));
 
     public string DescribeTrigger()

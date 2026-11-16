@@ -213,9 +213,10 @@ everything else is typed as it is, whatever the keyboard layout. Other keyboards
 
 - **Keys**: F3 and F6 can be used alone (they are the function keys that reach Windows as plain keys from an Apple
   keyboard in either top row mode); a letter or a digit needs Control, Option or Command.
-- **On the sign-in and lock screens**: a macro marked for them also works there (the background service runs a helper
-  on those screens). Typical use: a PC that does not show the last user — F3 types the user name and Tab, and you type
-  the PIN or password yourself.
+- **Where it works**: in Windows after you sign in, on the sign-in and lock screens too, or **only** on the sign-in and
+  lock screens (the background service runs a helper on those screens). Typical use: a PC that does not show the last
+  user — F3, only on the sign-in screen, types the user name and Tab, you type the PIN or password yourself, and in
+  Windows F3 stays F3.
 - **No passwords.** The text is stored as plain text, and a password that a program can type before you sign in would
   have to be readable by the machine without you — that is no protection. So macros are for things that are not secret.
 

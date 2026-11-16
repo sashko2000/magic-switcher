@@ -589,7 +589,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _localRemapper?.Dispose();
         _localRemapper = null;
         bool driver = AppleKeyboardDriver.IsInstalled;
-        if (!viaService && (_settings.AppleKeyMap.Count > 0 || _settings.AppleMacros.Count > 0 || driver))
+        var sessionMacros = _settings.AppleMacros.Where(m => m.InSession).ToList(); // the rest are for the sign-in screen: the service's
+        if (!viaService && (_settings.AppleKeyMap.Count > 0 || sessionMacros.Count > 0 || driver))
         {
             if (driver && !AppleTopRow.Exists(AppleTopRow.UserPath))
             {
@@ -597,7 +598,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 AppleTopRow.Write(AppleTopRow.UserPath, fKeys: _settings.AppleMediaKeysByDefault == false);
             }
 
-            _localRemapper = new KeyRemapper(_settings.AppleKeyMap, driver ? AppleTopRow.UserPath : null, _settings.AppleMacros);
+            _localRemapper = new KeyRemapper(_settings.AppleKeyMap, driver ? AppleTopRow.UserPath : null, sessionMacros);
             _localRemapper.Start();
         }
 

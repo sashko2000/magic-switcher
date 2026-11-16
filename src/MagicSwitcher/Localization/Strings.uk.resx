@@ -519,9 +519,6 @@
   <data name="MacroTokens" xml:space="preserve">
     <value>{TAB}, {ENTER}, {ESC} і {BACKSPACE} натискають ці клавіші.</value>
   </data>
-  <data name="MacroSignIn" xml:space="preserve">
-    <value>Також на екранах входу та блокування Windows (потрібна фонова служба)</value>
-  </data>
   <data name="MacroSignInShort" xml:space="preserve">
     <value>також на екрані входу</value>
   </data>
@@ -536,5 +533,23 @@
   </data>
   <data name="MacroTooMany" xml:space="preserve">
     <value>Не більше {0} макросів.</value>
+  </data>
+  <data name="MacroWhere" xml:space="preserve">
+    <value>Працює:</value>
+  </data>
+  <data name="MacroWhereSession" xml:space="preserve">
+    <value>У Windows, після входу</value>
+  </data>
+  <data name="MacroWhereBoth" xml:space="preserve">
+    <value>У Windows і на екранах входу та блокування</value>
+  </data>
+  <data name="MacroWhereSignIn" xml:space="preserve">
+    <value>Лише на екранах входу та блокування</value>
+  </data>
+  <data name="MacroWhereNote" xml:space="preserve">
+    <value>Для екранів входу та блокування потрібна фонова служба.</value>
+  </data>
+  <data name="MacroSignInOnlyShort" xml:space="preserve">
+    <value>лише на екрані входу</value>
   </data>
 </root>

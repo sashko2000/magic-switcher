@@ -519,9 +519,6 @@
   <data name="MacroTokens" xml:space="preserve">
     <value>{TAB}, {ENTER}, {ESC} and {BACKSPACE} press those keys.</value>
   </data>
-  <data name="MacroSignIn" xml:space="preserve">
-    <value>Also on the Windows sign-in and lock screens (needs the background service)</value>
-  </data>
   <data name="MacroSignInShort" xml:space="preserve">
     <value>also on the sign-in screen</value>
   </data>
@@ -536,5 +533,23 @@
   </data>
   <data name="MacroTooMany" xml:space="preserve">
     <value>No more than {0} macros.</value>
+  </data>
+  <data name="MacroWhere" xml:space="preserve">
+    <value>Works:</value>
+  </data>
+  <data name="MacroWhereSession" xml:space="preserve">
+    <value>In Windows, after you sign in</value>
+  </data>
+  <data name="MacroWhereBoth" xml:space="preserve">
+    <value>In Windows and on the sign-in and lock screens</value>
+  </data>
+  <data name="MacroWhereSignIn" xml:space="preserve">
+    <value>Only on the sign-in and lock screens</value>
+  </data>
+  <data name="MacroWhereNote" xml:space="preserve">
+    <value>The sign-in and lock screens need the background service.</value>
+  </data>
+  <data name="MacroSignInOnlyShort" xml:space="preserve">
+    <value>only on the sign-in screen</value>
   </data>
 </root>

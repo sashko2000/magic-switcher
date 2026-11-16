@@ -195,7 +195,7 @@ internal sealed class RemapHelper : IDisposable
         Log.UseFile("remap-log.txt");
         var mappings = BluetoothService.LoadKeyMap();
         using var remapper = new KeyRemapper(mappings, AppleKeyboardDriver.IsInstalled ? AppleTopRow.MachinePath : null,
-            BluetoothService.LoadMacros());
+            BluetoothService.LoadMacros().Where(m => m.InSession));
         remapper.Start();
         Thread.Sleep(Timeout.Infinite); // the service kills this process when the mappings change or the user signs out
         return 0;

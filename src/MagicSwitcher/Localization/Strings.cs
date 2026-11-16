@@ -183,10 +183,15 @@ internal static class Strings
     public static string MacroKey => Get(nameof(MacroKey));
     public static string MacroText => Get(nameof(MacroText));
     public static string MacroTokens => Get(nameof(MacroTokens));
-    public static string MacroSignIn => Get(nameof(MacroSignIn));
     public static string MacroSignInShort => Get(nameof(MacroSignInShort));
     public static string MacroAdd => Get(nameof(MacroAdd));
     public static string MacroRemove => Get(nameof(MacroRemove));
     public static string MacroInvalid => Get(nameof(MacroInvalid));
     public static string MacroTooMany(object? arg0) => Format(nameof(MacroTooMany), arg0);
+    public static string MacroWhere => Get(nameof(MacroWhere));
+    public static string MacroWhereSession => Get(nameof(MacroWhereSession));
+    public static string MacroWhereBoth => Get(nameof(MacroWhereBoth));
+    public static string MacroWhereSignIn => Get(nameof(MacroWhereSignIn));
+    public static string MacroWhereNote => Get(nameof(MacroWhereNote));
+    public static string MacroSignInOnlyShort => Get(nameof(MacroSignInOnlyShort));
 }
