@@ -1,4 +1,4 @@
-<Project Sdk="WixToolset.Sdk/5.0.2">
+<Project Sdk="WixToolset.Sdk/7.0.1">
 
   <!-- The MSI installer. Build it after publishing the app to a folder:
 
@@ -12,6 +12,10 @@
     <Version Condition="'$(Version)' == ''">0.0.0</Version>
     <OutputName>MagicSwitcher-$(Version)-win-x64</OutputName>
     <DefineConstants>Version=$(Version);AppDir=$(AppDir)</DefineConstants>
+    <!-- WiX 7 binaries are used under the Open Source Maintenance Fee EULA
+         (https://github.com/wixtoolset/wix/blob/v7.0.0/OSMFEULA.txt). The fee applies to revenue-generating use with
+         an annual gross revenue of US$10,000 or more; this project has none. The project owner accepted the EULA. -->
+    <AcceptEula>wix7</AcceptEula>
     <!-- The ICE checks need the Windows Installer service, which build agents do not always have. -->
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
