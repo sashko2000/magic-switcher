@@ -41,6 +41,11 @@ internal static class Program
             return ServiceHost.Run() ? 0 : 1;
         }
 
+        if (Has(args, ServiceInstaller.StopForSetupArgument))
+        {
+            return ServiceInstaller.StopForSetup();
+        }
+
         if (Has(args, ServiceInstaller.InstallArgument))
         {
             return ServiceInstaller.InstallElevated();

@@ -21,6 +21,8 @@ internal static class ServiceCommands
     public const string AppleFn = "apple-fn";
     /// <summary>Restarts the Windows audio services.</summary>
     public const string RestartAudio = "restart-audio";
+    /// <summary>Stops the service and its helpers: the installer is about to replace the files (it starts the service again).</summary>
+    public const string Shutdown = "shutdown";
 }
 
 /// <summary>A device the service keeps working: restored at startup, sign-in, unlock, wake and on request.</summary>

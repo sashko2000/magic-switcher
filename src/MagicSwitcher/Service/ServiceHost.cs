@@ -100,6 +100,14 @@ internal static class ServiceHost
         Report(StateStopped);
     }
 
+    /// <summary>Stops the service from inside (the installer asks for it through the pipe before it replaces the files).</summary>
+    public static void RequestStop()
+    {
+        Log.Info("Event: stop (requested by the installer)");
+        Report(StateStopPending, waitHint: 10000);
+        Stopped.Set();
+    }
+
     private static uint OnControl(uint control, uint eventType, IntPtr eventData, IntPtr context)
     {
         // Must return quickly: the service reacts on its own threads (writing a log line is fast enough).

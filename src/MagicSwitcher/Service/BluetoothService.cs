@@ -101,6 +101,15 @@ internal sealed class BluetoothService
             case ServiceCommands.Ping:
                 return new ServiceResponse { Ok = true, Version = AppInfo.Version };
 
+            case ServiceCommands.Shutdown:
+                // Answer first, then stop: the caller waits for the service to reach "stopped".
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(200);
+                    ServiceHost.RequestStop();
+                });
+                return ServiceResponse.Success();
+
             case ServiceCommands.Configure:
             {
                 var devices = (request.Devices ?? [])

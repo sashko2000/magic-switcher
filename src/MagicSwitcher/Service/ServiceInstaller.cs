@@ -107,6 +107,68 @@ internal static class ServiceInstaller
         }
     }
 
+    /// <summary>With this argument the app stops everything of itself that is running: see <see cref="StopForSetup"/>.</summary>
+    public const string StopForSetupArgument = "--stop-for-setup";
+
+    /// <summary>
+    /// The installer runs this (as the user, without administrator rights) before it checks which files are in use:
+    /// the service stops itself and its helpers when asked through the pipe, and the tray app is the user's own process.
+    /// With nothing left running, Windows Installer has nothing to ask about and no reason to want a reboot.
+    /// </summary>
+    public static int StopForSetup()
+    {
+        try
+        {
+            if (GetState() is ServiceState.Running or ServiceState.Starting)
+            {
+                try
+                {
+                    ServicePipe.SendAsync(new ServiceRequest { Command = ServiceCommands.Shutdown }, TimeSpan.FromSeconds(5),
+                        connectTimeout: TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+                }
+                catch (Exception ex) when (ex is IOException or TimeoutException)
+                {
+                    Log.Info($"Stop for setup: the service did not answer ({ex.Message})");
+                }
+
+                for (int i = 0; i < 60 && GetState() is not (ServiceState.Stopped or ServiceState.NotInstalled); i++)
+                {
+                    Thread.Sleep(250);
+                }
+            }
+
+            int own = Environment.ProcessId;
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName("MagicSwitcher"))
+            {
+                using (process)
+                {
+                    if (process.Id == own)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(5000);
+                    }
+                    catch (Exception)
+                    {
+                        // Not ours (a helper of the service that is still exiting): the installer's own step closes it.
+                    }
+                }
+            }
+
+            Log.Info($"Stop for setup: service {GetState()}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Stop for setup failed", ex);
+            return 1;
+        }
+    }
+
     /// <summary>Runs in the elevated helper process. Returns 0 or a Win32 error code.</summary>
     public static int InstallElevated()
     {

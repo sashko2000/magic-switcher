@@ -33,9 +33,6 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/sashko2000/magic-switcher" />
     <Property Id="ARPHELPLINK" Value="https://github.com/sashko2000/magic-switcher/issues" />
-    <!-- The files are closed by the custom actions below; without this Windows Installer would ask to close the app
-         (or ask for a reboot) before they get the chance. -->
-    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
     <!-- Replace every file, whatever its version: the folder may hold a build installed by the app itself. -->
     <Property Id="REINSTALLMODE" Value="amus" />
 
@@ -62,7 +59,15 @@
       <RegistryValue Root="HKCU" Key="Software\MagicSwitcher" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
-    <!-- Before files are replaced or removed: stop the service (it stops its helpers), then close the tray app.
+    <!-- First of all, before Windows Installer checks which files are in use: the installed app stops itself, its
+         service and its helpers (as the user: the service does it when asked through its pipe). With nothing running
+         there is nothing to ask the user about. On a first installation the exe is not there yet: ignored. -->
+    <CustomAction Id="StopForSetup" Directory="System64Folder"
+                  ExeCommand="&quot;[INSTALLFOLDER]MagicSwitcher.exe&quot; --stop-for-setup"
+                  Execute="immediate" Impersonate="yes" Return="ignore" />
+
+    <!-- The same again with administrator rights, in case the step above could not do it (an older version that
+         does not know it, a service that did not answer): stop the service, then close the tray app.
          Deferred and not impersonated: they run as LocalSystem, invisibly. Errors are ignored: on a first
          installation there is nothing to stop. -->
     <CustomAction Id="StopService" Directory="System64Folder"
@@ -91,6 +96,7 @@
                   Execute="immediate" Impersonate="yes" Return="ignore" />
 
     <InstallExecuteSequence>
+      <Custom Action="StopForSetup" Before="InstallValidate" />
       <Custom Action="StopService" After="InstallInitialize" />
       <Custom Action="UninstallService" After="StopService" Condition="REMOVE=&quot;ALL&quot;" />
       <Custom Action="CloseApp" After="UninstallService" />
