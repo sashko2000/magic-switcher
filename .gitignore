@@ -12,3 +12,6 @@ AppleBcUpdate.exe
 
 # Files Claude saved from the chat
 Claude outputs/
+
+# Windows Installer logs from local tests
+*.log

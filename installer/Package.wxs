@@ -21,8 +21,11 @@
 
     <SummaryInformation Description="Apple Magic Keyboard on Windows: tray app and background service" />
 
-    <!-- A newer version replaces the installed one; an older MSI refuses to run over a newer installation. -->
-    <MajorUpgrade DowngradeErrorMessage="A newer version of MagicSwitcher is already installed." />
+    <!-- A newer version replaces the installed one; an older MSI refuses to run over a newer installation.
+         Another build of the same version replaces it too (otherwise a local build and the released one of the
+         same version would both show up in the list of installed apps). -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of MagicSwitcher is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- The icon in Settings → Apps (the Start menu shortcut takes the icon of the exe itself). -->
