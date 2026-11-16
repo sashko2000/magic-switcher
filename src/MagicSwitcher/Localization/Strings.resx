@@ -495,4 +495,7 @@
   <data name="TrayKeyboardCableTooltip" xml:space="preserve">
     <value>On its cable the keyboard works as a USB keyboard and its Bluetooth is off. Unplug the cable to use it over Bluetooth.</value>
   </data>
+  <data name="RemapScreenSnip" xml:space="preserve">
+    <value>Screen snip (Win+Shift+S)</value>
+  </data>
 </root>

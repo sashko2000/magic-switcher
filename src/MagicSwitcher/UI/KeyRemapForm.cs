@@ -119,6 +119,7 @@ internal sealed class KeyRemapForm : Form
         KeyTarget.Insert => "Insert",
         KeyTarget.PrintScreen => "Print Screen",
         KeyTarget.Menu => "Menu",
+        KeyTarget.ScreenSnip => Strings.RemapScreenSnip,
         _ => target.ToString(),
     };
 

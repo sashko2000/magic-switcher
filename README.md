@@ -193,6 +193,9 @@ top row do not work. Apple's Boot Camp keyboard driver fixes that, and the app c
 (e.g. right Command → Delete, Caps Lock → Ctrl) on Apple keyboards only — other keyboards are not affected, unlike a
 `Scancode Map` in the registry, which changes all keyboards. Works over Bluetooth and USB.
 
+Besides single keys, a key can send **Screen snip (Win+Shift+S)**: unlike Print Screen, which Windows ignores while a
+window started as administrator has the focus, that shortcut opens the Snipping Tool everywhere.
+
 How: a low-level keyboard hook can replace keys but does not know which keyboard sent them; raw input knows the device
 but arrives about a millisecond later, and not at all for a key the hook swallowed (measured with `tools/InputProbe`).
 So a remapped key goes through first, and as soon as raw input reports that it came from an Apple keyboard the app takes
@@ -338,15 +341,15 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.5.4
-git push origin v1.5.4
+git tag v1.5.5
+git push origin v1.5.5
 ```
 
 The installer is a WiX project (`installer/`, MSI). To build it locally:
 
 ```powershell
 dotnet publish src/MagicSwitcher -c Release -r win-x64 --self-contained true -p:DebugType=none -o publish\MagicSwitcher
-dotnet build installer -c Release -p:Version=1.5.4 -p:AppDir="$PWD\publish\MagicSwitcher"
+dotnet build installer -c Release -p:Version=1.5.5 -p:AppDir="$PWD\publish\MagicSwitcher"
 ```
 
 The service is not described in the MSI tables: the installer calls `MagicSwitcher.exe --install-service` and

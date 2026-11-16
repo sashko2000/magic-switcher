@@ -3,7 +3,7 @@
   <!-- The MSI installer. Build it after publishing the app to a folder:
 
          dotnet publish src/MagicSwitcher -c Release -r win-x64 - -self-contained true -p:DebugType=none -o publish\MagicSwitcher
-         dotnet build installer -c Release -p:Version=1.5.4 -p:AppDir=C:\full\path\to\publish\MagicSwitcher
+         dotnet build installer -c Release -p:Version=1.5.5 -p:AppDir=C:\full\path\to\publish\MagicSwitcher
 
        (write the two hyphens of "self-contained" together; XML comments cannot contain them).
        The .msi appears under installer\bin. -->

@@ -36,6 +36,7 @@ internal sealed class KeyRemapper : IDisposable
     private static readonly UIntPtr Marker = new(0x4D53574B); // "MSWK": our own injected input, ignored by the hook
 
     private readonly Dictionary<int, (KeyCode From, KeyCode? To)> _map;
+    private readonly Dictionary<int, KeyCode[]> _shortcuts; // keys that send a shortcut once (and nothing while held)
     private readonly Dictionary<int, long> _pending = []; // original passed, waiting for raw input (message thread only)
     private readonly HashSet<int> _held = [];              // remapped keys held down on an Apple keyboard
     private readonly Dictionary<IntPtr, bool> _isApple = [];
@@ -89,6 +90,11 @@ internal sealed class KeyRemapper : IDisposable
             .Where(m => m.To != m.From)
             .GroupBy(m => m.From.Id)
             .ToDictionary(g => g.Key, g => g.Last());
+        _shortcuts = mappings
+            .Where(m => KeyCode.ShortcutOf(m.To) is not null)
+            .GroupBy(m => KeyCode.Of(m.From).Id)
+            .Where(g => KeyCode.ShortcutOf(g.Last().To) is not null)
+            .ToDictionary(g => g.Key, g => KeyCode.ShortcutOf(g.Last().To)!);
         _thread = new Thread(Run) { IsBackground = true, Name = "Key remapper" };
         _thread.SetApartmentState(ApartmentState.STA);
     }
@@ -151,7 +157,7 @@ internal sealed class KeyRemapper : IDisposable
             _winEventProc = (_, _, _, _, _, _, _) => ReleaseHeld();
             _winEventHook = SetWinEventHook(0x0020, 0x0020, IntPtr.Zero, _winEventProc, 0, 0, 0); // EVENT_SYSTEM_DESKTOPSWITCH
 
-            Log.Info($"Key remapper started: {string.Join(", ", _map.Values.Select(m => $"{m.From.VirtualKey:X2}->{(m.To is { } t ? t.VirtualKey.ToString("X2") : "off")}"))}" +
+            Log.Info($"Key remapper started: {string.Join(", ", _map.Values.Select(m => $"{m.From.VirtualKey:X2}->{(m.To is { } t ? t.VirtualKey.ToString("X2") : _shortcuts.ContainsKey(m.From.Id) ? "shortcut" : "off")}"))}" +
                      (_topRowStatePath is null ? "" : $"; top row: {(_fKeys ? "F-keys" : "media keys")}"));
         }
         finally
@@ -441,6 +447,12 @@ internal sealed class KeyRemapper : IDisposable
             if (mapping.To is { } to)
             {
                 inputs.Add(Key(to, up: false));
+            }
+            else if (_shortcuts.TryGetValue(id, out var shortcut))
+            {
+                // A shortcut is pressed and released at once; while the key stays down nothing more is sent.
+                inputs.AddRange(shortcut.Select(key => Key(key, up: false)));
+                inputs.AddRange(shortcut.Reverse().Select(key => Key(key, up: true)));
             }
 
             _held.Add(id);

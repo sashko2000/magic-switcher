@@ -37,6 +37,11 @@ public enum KeyTarget
     Insert,
     PrintScreen,
     Menu,
+    /// <summary>
+    /// The Win+Shift+S shortcut (Snipping Tool). Unlike Print Screen, which Windows ignores while a window started as
+    /// administrator has the focus, it works everywhere.
+    /// </summary>
+    ScreenSnip,
 }
 
 /// <summary>One remapping: <see cref="From"/> on an Apple keyboard sends <see cref="To"/>.</summary>
@@ -63,10 +68,17 @@ internal readonly record struct KeyCode(ushort Scan, bool Extended, ushort Virtu
         _ => throw new ArgumentOutOfRangeException(nameof(key)),
     };
 
-    /// <summary>null for <see cref="KeyTarget.Disabled"/>.</summary>
+    /// <summary>The keys of a target that is a shortcut, in the order they are pressed; null for a single key.</summary>
+    public static KeyCode[]? ShortcutOf(KeyTarget target) => target switch
+    {
+        KeyTarget.ScreenSnip => [new(0x5B, true, 0x5B), new(0x2A, false, 0xA0), new(0x1F, false, 0x53)], // Win, Shift, S
+        _ => null,
+    };
+
+    /// <summary>null for <see cref="KeyTarget.Disabled"/> and for shortcuts (<see cref="ShortcutOf"/>).</summary>
     public static KeyCode? Of(KeyTarget target) => target switch
     {
-        KeyTarget.Disabled => null,
+        KeyTarget.Disabled or KeyTarget.ScreenSnip => null,
         KeyTarget.LeftControl => new(0x1D, false, 0xA2),
         KeyTarget.RightControl => new(0x1D, true, 0xA3),
         KeyTarget.LeftAlt => new(0x38, false, 0xA4),

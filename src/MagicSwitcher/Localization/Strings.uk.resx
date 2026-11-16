@@ -495,4 +495,7 @@
   <data name="TrayKeyboardCableTooltip" xml:space="preserve">
     <value>По кабелю клавіатура працює як USB-клавіатура, її Bluetooth вимкнено. Від’єднайте кабель, щоб вона працювала через Bluetooth.</value>
   </data>
+  <data name="RemapScreenSnip" xml:space="preserve">
+    <value>Знімок екрана (Win+Shift+S)</value>
+  </data>
 </root>
