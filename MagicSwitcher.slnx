@@ -6,10 +6,11 @@
     <Project Path="src/MagicSwitcher/MagicSwitcher.csproj" />
   </Folder>
   <Folder Name="/installer/">
-    <!-- As files, not as a project: Visual Studio opens WiX projects only with the HeatWave extension, and the
-         installer is built from the command line anyway (see the comment in the project file). -->
-    <File Path="installer/MagicSwitcher.Installer.wixproj" />
-    <File Path="installer/Package.wxs" />
+    <!-- A WiX project: Visual Studio opens it with the HeatWave extension. Not built with the solution: it needs
+         the published app folder (see the comment in the project file). -->
+    <Project Path="installer/MagicSwitcher.Installer.wixproj">
+      <Build Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/InputProbe/InputProbe.csproj" />
