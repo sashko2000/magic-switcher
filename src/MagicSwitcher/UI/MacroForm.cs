@@ -12,6 +12,7 @@ internal sealed class MacroForm : Form
     private readonly ComboBox _key, _where;
     private readonly TextBox _text;
     private readonly List<KeyMacro> _macros;
+    private bool _loading; // the editor is being filled from the list: not an edit
 
     /// <summary>The macros when the user clicked OK.</summary>
     public List<KeyMacro> Result { get; private set; }
@@ -68,6 +69,16 @@ internal sealed class MacroForm : Form
         _where.SelectedIndex = 0;
         var whereNote = new Label { Text = Strings.MacroWhereNote, AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(440, 0) };
 
+        // Editing the fields changes the selected macro right away (no separate "apply" step to forget).
+        foreach (var box in new[] { _ctrl, _alt, _shift, _win })
+        {
+            box.CheckedChanged += (_, _) => ApplyToSelected();
+        }
+
+        _key.SelectedIndexChanged += (_, _) => ApplyToSelected();
+        _where.SelectedIndexChanged += (_, _) => ApplyToSelected();
+        _text.TextChanged += (_, _) => ApplyToSelected();
+
         var add = new Button { Text = Strings.MacroAdd, AutoSize = true };
         add.Click += (_, _) => AddOrReplace();
         var remove = new Button { Text = Strings.MacroRemove, AutoSize = true };
@@ -102,7 +113,7 @@ internal sealed class MacroForm : Form
         root.Controls.Add(buttons, 0, 3);
         Controls.Add(root);
 
-        FillList(select: -1);
+        FillList(select: _macros.Count > 0 ? 0 : -1); // selected: the fields below edit it
     }
 
     public static string Describe(KeyMacro macro) =>
@@ -128,35 +139,73 @@ internal sealed class MacroForm : Form
 
     private void LoadSelected()
     {
-        if (_list.SelectedIndex < 0 || _list.SelectedIndex >= _macros.Count)
+        if (_loading || _list.SelectedIndex < 0 || _list.SelectedIndex >= _macros.Count)
         {
             return;
         }
 
         var macro = _macros[_list.SelectedIndex];
-        _ctrl.Checked = macro.Ctrl;
-        _alt.Checked = macro.Alt;
-        _shift.Checked = macro.Shift;
-        _win.Checked = macro.Win;
-        _key.SelectedItem = _key.Items.Cast<KeyItem>().FirstOrDefault(k => k.Key == macro.Key) ?? _key.Items[0];
-        _text.Text = macro.Text;
-        _where.SelectedIndex = !macro.OnSignInScreen ? 0 : macro.InSession ? 1 : 2;
+        _loading = true;
+        try
+        {
+            _ctrl.Checked = macro.Ctrl;
+            _alt.Checked = macro.Alt;
+            _shift.Checked = macro.Shift;
+            _win.Checked = macro.Win;
+            _key.SelectedItem = _key.Items.Cast<KeyItem>().FirstOrDefault(k => k.Key == macro.Key) ?? _key.Items[0];
+            _text.Text = macro.Text;
+            _where.SelectedIndex = !macro.OnSignInScreen ? 0 : macro.InSession ? 1 : 2;
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
-    /// <summary>Adds the macro from the editor; one with the same key replaces the old one.</summary>
+    private KeyMacro FromEditor() => new()
+    {
+        Key = (_key.SelectedItem as KeyItem)?.Key ?? 0,
+        Ctrl = _ctrl.Checked,
+        Alt = _alt.Checked,
+        Shift = _shift.Checked,
+        Win = _win.Checked,
+        Text = _text.Text,
+        OnSignInScreen = _where.SelectedIndex >= 1,
+        InSession = _where.SelectedIndex != 2,
+    };
+
+    /// <summary>The fields were edited: change the selected macro (while what is in the fields makes a valid macro).</summary>
+    private void ApplyToSelected()
+    {
+        int index = _list.SelectedIndex;
+        if (_loading || index < 0 || index >= _macros.Count)
+        {
+            return;
+        }
+
+        var macro = FromEditor();
+        if (!macro.IsValid || macro == _macros[index])
+        {
+            return;
+        }
+
+        _macros[index] = macro;
+        _loading = true;
+        try
+        {
+            _list.Items[index] = Describe(macro);
+            _list.SelectedIndex = index;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Adds the macro from the editor as a new one; one with the same key replaces the old one.</summary>
     private void AddOrReplace()
     {
-        var macro = new KeyMacro
-        {
-            Key = (_key.SelectedItem as KeyItem)?.Key ?? 0,
-            Ctrl = _ctrl.Checked,
-            Alt = _alt.Checked,
-            Shift = _shift.Checked,
-            Win = _win.Checked,
-            Text = _text.Text,
-            OnSignInScreen = _where.SelectedIndex >= 1,
-            InSession = _where.SelectedIndex != 2,
-        };
+        var macro = FromEditor();
         if (!macro.IsValid)
         {
             MessageBox.Show(this, Strings.MacroInvalid, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);

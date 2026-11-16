@@ -523,7 +523,7 @@
     <value>також на екрані входу</value>
   </data>
   <data name="MacroAdd" xml:space="preserve">
-    <value>Додати / замінити</value>
+    <value>Додати як новий</value>
   </data>
   <data name="MacroRemove" xml:space="preserve">
     <value>Видалити</value>

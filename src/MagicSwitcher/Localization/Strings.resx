@@ -523,7 +523,7 @@
     <value>also on the sign-in screen</value>
   </data>
   <data name="MacroAdd" xml:space="preserve">
-    <value>Add / replace</value>
+    <value>Add as new</value>
   </data>
   <data name="MacroRemove" xml:space="preserve">
     <value>Remove</value>

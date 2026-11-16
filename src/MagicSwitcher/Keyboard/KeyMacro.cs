@@ -42,6 +42,7 @@ public sealed record KeyMacro
     /// A function key may be used alone. A letter or a digit needs Ctrl, Alt or Win: alone (or with Shift) it would
     /// stop typing — also in the PIN on the sign-in screen.
     /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsValid =>
         Text.Length is > 0 and <= MaxTextLength
         && (InSession || OnSignInScreen)
