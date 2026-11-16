@@ -489,4 +489,10 @@
   <data name="OverlayPowerCycle" xml:space="preserve">
     <value>{0} was used by another device. Turn it off and on.</value>
   </data>
+  <data name="TrayKeyboardCable" xml:space="preserve">
+    <value>{0} — connected by cable</value>
+  </data>
+  <data name="TrayKeyboardCableTooltip" xml:space="preserve">
+    <value>On its cable the keyboard works as a USB keyboard and its Bluetooth is off. Unplug the cable to use it over Bluetooth.</value>
+  </data>
 </root>

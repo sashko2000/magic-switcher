@@ -17,6 +17,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly SynchronizationContext _ui;
     private readonly DeviceStatusMonitor _monitor = new();
     private readonly HashSet<string> _busy = [];
+    private readonly HashSet<string> _onCable = []; // Apple keyboards plugged in with a cable (see AppleUsbKeyboard)
     private readonly System.Windows.Forms.Timer _batteryTimer = new() { Interval = (int)TimeSpan.FromMinutes(5).TotalMilliseconds };
     private Dictionary<string, int> _battery = [];
     private DateTime _batteryRefreshedAt = DateTime.MinValue;
@@ -95,6 +96,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _monitor.StatusChanged += (_, _) => _ui.Post(_ =>
         {
+            RefreshCable(); // plugging the cable in is what disconnects Bluetooth
             RebuildMenu();
             // Windows publishes the battery level a few seconds after the device connects.
             _ = RefreshBatteryAsync(TimeSpan.FromSeconds(5));
@@ -103,6 +105,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Battery: refresh when the menu opens (at most every 30 s) and every 5 minutes for the tooltip.
         _menu.Opening += (_, _) =>
         {
+            if (RefreshCable())
+            {
+                RebuildMenu();
+            }
+
             _ = _monitor.RefreshHidAsync();
             if (DateTime.UtcNow - _batteryRefreshedAt > TimeSpan.FromSeconds(30))
             {
@@ -111,9 +118,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         };
         _batteryTimer.Tick += (_, _) => _ = RefreshBatteryAsync();
         _batteryTimer.Start();
-        _microphoneTimer.Tick += async (_, _) => await CheckMicrophonesAsync();
+        _microphoneTimer.Tick += async (_, _) =>
+        {
+            if (RefreshCable())
+            {
+                RebuildMenu();
+            }
+
+            await CheckMicrophonesAsync();
+        };
         _microphoneTimer.Start();
 
+        RefreshCable();
         RebuildMenu();
         _ = InitializeStatusAsync();
 
@@ -249,6 +265,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _tray.Text = BuildTooltip();
     }
 
+    /// <summary>Checks which keyboards are plugged in with a cable. Returns true if that changed.</summary>
+    private bool RefreshCable()
+    {
+        var now = _settings.Devices
+            .Where(d => d.RestoreAtStartup && !d.IsLowEnergy && _monitor.IsConnected(d) != true && AppleUsbKeyboard.IsConnectedByCable(d.Address))
+            .Select(d => d.Key)
+            .ToHashSet();
+        if (now.SetEquals(_onCable))
+        {
+            return false;
+        }
+
+        _onCable.Clear();
+        _onCable.UnionWith(now);
+        Log.Info(now.Count > 0 ? "The keyboard is connected by cable" : "The keyboard is no longer connected by cable");
+        return true;
+    }
+
     /// <summary>The keyboard: its state while it works here (a click does nothing), otherwise the action to bring it here.</summary>
     private ToolStripMenuItem CreateKeyboardItem(SavedDevice device)
     {
@@ -262,6 +296,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             string text = _battery.TryGetValue(device.Key, out int level) ? Strings.TrayItemBattery(device.DisplayName, level) : device.DisplayName;
             return new ToolStripMenuItem(text) { Checked = true, ToolTipText = Strings.TrayKeyboardConnectedTooltip };
+        }
+
+        if (_onCable.Contains(device.Key))
+        {
+            // On its cable the keyboard is a USB keyboard and its Bluetooth is off: nothing to connect.
+            return new ToolStripMenuItem(Strings.TrayKeyboardCable(device.DisplayName)) { Checked = true, ToolTipText = Strings.TrayKeyboardCableTooltip };
         }
 
         var item = new ToolStripMenuItem(
@@ -396,7 +436,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         // The keyboard is not here: bring it. Otherwise there is nothing urgent to do: open the settings.
-        var keyboard = _settings.Devices.FirstOrDefault(d => d.RestoreAtStartup && _monitor.IsConnected(d) != true);
+        RefreshCable();
+        var keyboard = _settings.Devices.FirstOrDefault(d => d.RestoreAtStartup && _monitor.IsConnected(d) != true && !_onCable.Contains(d.Key));
         if (keyboard is not null)
         {
             await ReconnectAsync(keyboard);

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using MagicSwitcher.Bluetooth;
 using MagicSwitcher.Infrastructure;
+using MagicSwitcher.Keyboard;
 
 namespace MagicSwitcher.Service;
 
@@ -82,11 +83,18 @@ internal sealed class PairingGuard : IDisposable
             var state = NativeBluetooth.GetState(device.Address);
             string hid = DescribeHid(device, state);
             bool types = Types(device, state); // outside the lock: counting HID collections may take a moment
+            bool cable = !types && AppleUsbKeyboard.IsConnectedByCable(device.Address);
             lock (_sync)
             {
                 if (_sessions.ContainsKey(device.Address))
                 {
                     Log.Info($"[Guard] {trigger}: '{Name(device)}' {state}, {hid}: already watching");
+                    continue;
+                }
+
+                if (cable)
+                {
+                    Log.Info($"[Guard] {trigger}: '{Name(device)}' is connected by cable (its Bluetooth is off): nothing to do");
                     continue;
                 }
 
@@ -226,6 +234,18 @@ internal sealed class PairingGuard : IDisposable
         {
             ct.ThrowIfCancellationRequested();
             var state = NativeBluetooth.GetState(device.Address);
+            if (!state.Connected && DateTime.UtcNow >= session.NextCableCheck)
+            {
+                // Plugged in with its cable meanwhile: it types as a USB keyboard, and its Bluetooth is off.
+                session.NextCableCheck = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+                if (AppleUsbKeyboard.IsConnectedByCable(device.Address))
+                {
+                    Log.Info($"[Guard] '{Name(device)}' is connected by cable now: nothing to restore");
+                    Report(session, KeyboardPhase.None);
+                    return true;
+                }
+            }
+
             if (session.KeyLost && state.Known && state.Paired)
             {
                 session.NextKnock = DateTime.UtcNow; // pair properly while the keyboard still accepts it
@@ -871,6 +891,8 @@ internal sealed class PairingGuard : IDisposable
         public int QuietKnocks { get; set; }
 
         public DateTime LastKnock { get; set; } = DateTime.MinValue;
+
+        public DateTime NextCableCheck { get; set; } = DateTime.MinValue;
 
         /// <summary>Knock once even if Windows reports the device as working (the tray says it does not type).</summary>
         public bool ForceFirstKnock { get; set; }

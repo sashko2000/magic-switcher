@@ -489,4 +489,10 @@
   <data name="OverlayPowerCycle" xml:space="preserve">
     <value>{0} використовувалася з іншим пристроєм. Вимкніть і ввімкніть її.</value>
   </data>
+  <data name="TrayKeyboardCable" xml:space="preserve">
+    <value>{0} — підключена кабелем</value>
+  </data>
+  <data name="TrayKeyboardCableTooltip" xml:space="preserve">
+    <value>По кабелю клавіатура працює як USB-клавіатура, її Bluetooth вимкнено. Від’єднайте кабель, щоб вона працювала через Bluetooth.</value>
+  </data>
 </root>
