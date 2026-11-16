@@ -29,6 +29,8 @@
     <SatelliteResourceLanguages>en;ru;uk</SatelliteResourceLanguages>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The icon of the exe: Start menu shortcut, Explorer, the list of installed apps. (The tray icon is drawn at runtime.) -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationVisualStyles>true</ApplicationVisualStyles>
     <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>

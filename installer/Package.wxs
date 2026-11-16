@@ -25,6 +25,9 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of MagicSwitcher is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- The icon in Settings → Apps (the Start menu shortcut takes the icon of the exe itself). -->
+    <Icon Id="AppIcon.ico" SourceFile="..\src\MagicSwitcher\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/sashko2000/magic-switcher" />
     <Property Id="ARPHELPLINK" Value="https://github.com/sashko2000/magic-switcher/issues" />
     <!-- The files are closed by the custom actions below; without this Windows Installer would ask to close the app
