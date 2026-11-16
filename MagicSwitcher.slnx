@@ -6,12 +6,10 @@
     <Project Path="src/MagicSwitcher/MagicSwitcher.csproj" />
   </Folder>
   <Folder Name="/installer/">
-    <!-- A WiX project: Visual Studio opens it with the HeatWave extension. The Type is HeatWave's project type for
-         SDK-style WiX projects; without it Visual Studio takes a .wixproj for an old WiX v3 project ("incompatible").
-         Not built with the solution: it needs the published app folder (see the comment in the project file). -->
-    <Project Path="installer/MagicSwitcher.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0">
-      <Build Project="false" />
-    </Project>
+    <!-- As files, not as a project: Visual Studio shows the WiX project as "incompatible" even with the HeatWave
+         extension, and the installer is built from the command line anyway (see the comment in the project file). -->
+    <File Path="installer/MagicSwitcher.Installer.wixproj" />
+    <File Path="installer/Package.wxs" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/InputProbe/InputProbe.csproj" />
