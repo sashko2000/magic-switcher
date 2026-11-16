@@ -20,6 +20,7 @@ internal sealed class BluetoothService
     private System.Threading.Timer? _helperTimer;
     private ServiceConfig _config = new();
     private readonly RemapHelper _remapHelper = new();
+    private readonly RemapHelper _signInHelper = RemapHelper.ForSignInScreen();
     private readonly StatusOverlay _overlay = new();
 
     public static string ConfigPath { get; } = Path.Combine(AppPaths.MachineDataDirectory, "service.json");
@@ -53,7 +54,7 @@ internal sealed class BluetoothService
             return;
         }
 
-        if (trigger is ServiceTrigger.Logon or ServiceTrigger.Unlock)
+        if (trigger is ServiceTrigger.Logon or ServiceTrigger.Unlock or ServiceTrigger.Lock)
         {
             _ = Task.Run(() => UpdateRemapHelper(restart: false));
         }
@@ -80,6 +81,7 @@ internal sealed class BluetoothService
     {
         _helperTimer?.Dispose();
         _remapHelper.Stop();
+        _signInHelper.Stop();
         _overlay.Stop();
 
         _stopping.Cancel();
@@ -126,6 +128,14 @@ internal sealed class BluetoothService
                     _config.KeyMap = newMap;
                 }
 
+                bool macrosChanged = false;
+                if (request.Macros is { } macros)
+                {
+                    var newMacros = macros.Where(m => m.IsValid).Take(KeyMacro.MaxCount).ToList();
+                    macrosChanged = !newMacros.SequenceEqual(_config.Macros);
+                    _config.Macros = newMacros;
+                }
+
                 if (!string.IsNullOrWhiteSpace(request.Language) && request.Language.Length <= 16)
                 {
                     _config.Language = request.Language;
@@ -135,7 +145,7 @@ internal sealed class BluetoothService
                 guard.Devices = devices;
                 Log.Info($"Configured: {Describe(devices)}; Apple top row: {DescribeTopRow()}; " +
                          $"remapped keys: {(_config.KeyMap.Count == 0 ? "none" : string.Join(", ", _config.KeyMap.Select(m => $"{m.From}->{m.To}")))}");
-                UpdateRemapHelper(restart: keyMapChanged);
+                UpdateRemapHelper(restart: keyMapChanged || macrosChanged);
                 return ServiceResponse.Success();
             }
 
@@ -202,7 +212,8 @@ internal sealed class BluetoothService
     {
         try
         {
-            _remapHelper.Update(_config.KeyMap.Count > 0 || AppleKeyboardDriver.IsInstalled, restart);
+            _remapHelper.Update(_config.KeyMap.Count > 0 || _config.Macros.Count > 0 || AppleKeyboardDriver.IsInstalled, restart);
+            _signInHelper.Update(_config.Macros.Any(m => m.OnSignInScreen), restart);
         }
         catch (Exception ex)
         {
@@ -241,6 +252,9 @@ internal sealed class BluetoothService
 
     /// <summary>Key mappings from the service configuration (for the remapper helper process).</summary>
     public static List<KeyMapping> LoadKeyMap() => LoadConfig().KeyMap;
+
+    /// <summary>Macros from the service configuration (for the helper processes).</summary>
+    public static List<KeyMacro> LoadMacros() => LoadConfig().Macros;
 
     /// <summary>UI language from the service configuration (for the status window process); null: the system's.</summary>
     public static string? LoadLanguage() => LoadConfig().Language;
@@ -289,6 +303,9 @@ internal sealed class ServiceConfig
 
     /// <summary>Keys remapped on Apple keyboards (see KeyRemapper / RemapHelper).</summary>
     public List<KeyMapping> KeyMap { get; set; } = [];
+
+    /// <summary>Macros of the Apple keyboard (see KeyMacro).</summary>
+    public List<KeyMacro> Macros { get; set; } = [];
 
     /// <summary>UI language of the tray app (culture name), for the status window on the sign-in screen.</summary>
     public string? Language { get; set; }

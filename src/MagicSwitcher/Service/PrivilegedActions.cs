@@ -35,7 +35,8 @@ internal static class PrivilegedActions
     }
 
     /// <summary>Tells the service which devices to restore. Returns false if the service is not running.</summary>
-    public static async Task<bool> ConfigureServiceAsync(IEnumerable<SavedDevice> devices, bool? appleMediaKeys, List<KeyMapping>? keyMap)
+    public static async Task<bool> ConfigureServiceAsync(IEnumerable<SavedDevice> devices, bool? appleMediaKeys, List<KeyMapping>? keyMap,
+        List<KeyMacro>? macros)
     {
         if (ServiceInstaller.GetState() != ServiceState.Running)
         {
@@ -51,6 +52,7 @@ internal static class PrivilegedActions
                 .ToList(),
             AppleMediaKeys = appleMediaKeys,
             KeyMap = keyMap,
+            Macros = macros,
             Language = System.Globalization.CultureInfo.CurrentUICulture.Name,
         };
 

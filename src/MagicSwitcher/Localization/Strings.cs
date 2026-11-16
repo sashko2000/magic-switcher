@@ -176,4 +176,17 @@ internal static class Strings
     public static string TrayKeyboardCable(object? arg0) => Format(nameof(TrayKeyboardCable), arg0);
     public static string TrayKeyboardCableTooltip => Get(nameof(TrayKeyboardCableTooltip));
     public static string RemapScreenSnip => Get(nameof(RemapScreenSnip));
+    public static string MacroButton => Get(nameof(MacroButton));
+    public static string MacroNone => Get(nameof(MacroNone));
+    public static string MacroTitle => Get(nameof(MacroTitle));
+    public static string MacroNote => Get(nameof(MacroNote));
+    public static string MacroKey => Get(nameof(MacroKey));
+    public static string MacroText => Get(nameof(MacroText));
+    public static string MacroTokens => Get(nameof(MacroTokens));
+    public static string MacroSignIn => Get(nameof(MacroSignIn));
+    public static string MacroSignInShort => Get(nameof(MacroSignInShort));
+    public static string MacroAdd => Get(nameof(MacroAdd));
+    public static string MacroRemove => Get(nameof(MacroRemove));
+    public static string MacroInvalid => Get(nameof(MacroInvalid));
+    public static string MacroTooMany(object? arg0) => Format(nameof(MacroTooMany), arg0);
 }

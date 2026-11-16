@@ -25,7 +25,7 @@ namespace MagicSwitcher.Keyboard;
 /// </para>
 /// Runs its own thread with a message loop (hook callbacks and raw input are delivered through it).
 /// </summary>
-internal sealed class KeyRemapper : IDisposable
+internal sealed partial class KeyRemapper : IDisposable
 {
     private const uint WmQuit = 0x0012;
     private const uint WmInput = 0x00FF;
@@ -81,8 +81,10 @@ internal sealed class KeyRemapper : IDisposable
     private IntPtr _winEventHook;
 
     /// <param name="topRowStatePath">File with the Fn Lock state (see <see cref="AppleTopRow"/>); null turns the top row handling off.</param>
-    public KeyRemapper(IEnumerable<KeyMapping> mappings, string? topRowStatePath = null)
+    /// <param name="macros">Macros of the Apple keyboard (see <see cref="KeyMacro"/>); invalid ones are ignored.</param>
+    public KeyRemapper(IEnumerable<KeyMapping> mappings, string? topRowStatePath = null, IEnumerable<KeyMacro>? macros = null)
     {
+        _macros = (macros ?? []).Where(m => m.IsValid).Take(KeyMacro.MaxCount).ToList();
         _topRowStatePath = topRowStatePath;
         _fKeys = topRowStatePath is not null && AppleTopRow.ReadFKeys(topRowStatePath);
         _map = mappings
@@ -158,7 +160,8 @@ internal sealed class KeyRemapper : IDisposable
             _winEventHook = SetWinEventHook(0x0020, 0x0020, IntPtr.Zero, _winEventProc, 0, 0, 0); // EVENT_SYSTEM_DESKTOPSWITCH
 
             Log.Info($"Key remapper started: {string.Join(", ", _map.Values.Select(m => $"{m.From.VirtualKey:X2}->{(m.To is { } t ? t.VirtualKey.ToString("X2") : _shortcuts.ContainsKey(m.From.Id) ? "shortcut" : "off")}"))}" +
-                     (_topRowStatePath is null ? "" : $"; top row: {(_fKeys ? "F-keys" : "media keys")}"));
+                     (_topRowStatePath is null ? "" : $"; top row: {(_fKeys ? "F-keys" : "media keys")}") +
+                     (_macros.Count == 0 ? "" : $"; macros: {string.Join(", ", _macros.Select(m => m.DescribeTrigger()))}"));
         }
         finally
         {
@@ -189,6 +192,11 @@ internal sealed class KeyRemapper : IDisposable
             int id = (int)k.scanCode | ((k.flags & LlkhfExtended) != 0 ? 0x100 : 0);
 
             if (k.dwExtraInfo != Marker && _topRowStatePath is not null && HandleTopRow(k, id))
+            {
+                return new IntPtr(1);
+            }
+
+            if (k.dwExtraInfo != Marker && _macros.Count > 0 && HandleMacroKey(k))
             {
                 return new IntPtr(1);
             }
@@ -413,6 +421,7 @@ internal sealed class KeyRemapper : IDisposable
             }
 
             int id = (kb.MakeCode & 0xFF) | ((kb.Flags & 2) != 0 ? 0x100 : 0);
+            NoteKeyboard(header.hDevice, kb.VKey, up);
             if (!up && id == LeftWinId && IsApple(header.hDevice))
             {
                 _appleWinDownAt = NowMs; // for the driver's Win+S / Win+C (see HandleTopRow)

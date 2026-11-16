@@ -43,6 +43,9 @@ internal sealed class SettingsForm : Form
     private readonly Button _appleRemap;
     private readonly Label _appleRemapSummary;
     private List<MagicSwitcher.Keyboard.KeyMapping> _keyMap;
+    private List<MagicSwitcher.Keyboard.KeyMacro> _macros;
+    private readonly Button _appleMacros;
+    private readonly Label _appleMacrosSummary;
     private readonly GroupBox _appleGroup;
     private bool _updatingAppleFn;
 
@@ -70,6 +73,7 @@ internal sealed class SettingsForm : Form
         _settings = settings;
         AppleMediaKeysByDefault = settings.AppleMediaKeysByDefault;
         _keyMap = settings.AppleKeyMap.ToList();
+        _macros = settings.AppleMacros.ToList();
 
         Text = Strings.SettingsTitle;
         StartPosition = FormStartPosition.CenterScreen;
@@ -281,6 +285,12 @@ internal sealed class SettingsForm : Form
         appleLayout.Controls.Add(_appleRemap, 0, 4);
         appleLayout.Controls.Add(_appleRemapSummary, 1, 4);
         UpdateRemapSummary();
+        _appleMacros = new Button { Text = Strings.MacroButton, AutoSize = true, Margin = new Padding(3, 3, 3, 3) };
+        _appleMacros.Click += (_, _) => EditMacros();
+        _appleMacrosSummary = new Label { AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = SystemColors.GrayText, Margin = new Padding(3, 3, 3, 3) };
+        appleLayout.Controls.Add(_appleMacros, 0, 5);
+        appleLayout.Controls.Add(_appleMacrosSummary, 1, 5);
+        UpdateMacrosSummary();
 
         _appleGroup = new GroupBox
         {
@@ -384,6 +394,7 @@ internal sealed class SettingsForm : Form
             _appleInfo.MaximumSize = new Size(Math.Max(100, width - 30), 0);
             _appleFnNote.MaximumSize = new Size(Math.Max(100, width - 30), 0);
             _appleRemapSummary.MaximumSize = new Size(Math.Max(100, width - 230), 0);
+            _appleMacrosSummary.MaximumSize = new Size(Math.Max(100, width - 230), 0);
             _appleStatus.MaximumSize = new Size(Math.Max(100, width - 270), 0);
             _serviceInfo.MaximumSize = new Size(Math.Max(100, width - 30), 0);
             _serviceStatus.MaximumSize = new Size(Math.Max(100, width - 330), 0);
@@ -762,7 +773,7 @@ internal sealed class SettingsForm : Form
                 await Task.Delay(500);
             }
 
-            await PrivilegedActions.ConfigureServiceAsync(CurrentDevices(), AppleMediaKeysByDefault, CurrentKeyMap());
+            await PrivilegedActions.ConfigureServiceAsync(CurrentDevices(), AppleMediaKeysByDefault, CurrentKeyMap(), _macros);
         }
         catch (OperationCanceledException)
         {
@@ -816,6 +827,20 @@ internal sealed class SettingsForm : Form
             UpdateRemapSummary();
         }
     }
+
+    private void EditMacros()
+    {
+        using var dialog = new MacroForm(_macros);
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _macros = dialog.Result;
+            UpdateMacrosSummary();
+        }
+    }
+
+    private void UpdateMacrosSummary() => _appleMacrosSummary.Text = _macros.Count == 0
+        ? Strings.MacroNone
+        : string.Join("; ", _macros.Select(MacroForm.Describe));
 
     private void UpdateRemapSummary() => _appleRemapSummary.Text = _keyMap.Count == 0
         ? Strings.RemapNone
@@ -969,6 +994,7 @@ internal sealed class SettingsForm : Form
             Language = (_language.SelectedItem as LanguageItem)?.Code ?? "",
             AppleMediaKeysByDefault = AppleMediaKeysByDefault,
             AppleKeyMap = _keyMap,
+            AppleMacros = _macros,
         };
 
         Close();

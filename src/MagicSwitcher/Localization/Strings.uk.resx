@@ -498,4 +498,43 @@
   <data name="RemapScreenSnip" xml:space="preserve">
     <value>Знімок екрана (Win+Shift+S)</value>
   </data>
+  <data name="MacroButton" xml:space="preserve">
+    <value>Макроси…</value>
+  </data>
+  <data name="MacroNone" xml:space="preserve">
+    <value>Макросів немає</value>
+  </data>
+  <data name="MacroTitle" xml:space="preserve">
+    <value>Макроси клавіатури Apple</value>
+  </data>
+  <data name="MacroNote" xml:space="preserve">
+    <value>Клавіша клавіатури Apple, сама або з модифікаторами, набирає текст. Інші клавіатури не зачіпаються. Текст зберігається як є, тому не записуйте сюди паролі. F3 і F6 можна використовувати без модифікаторів; для літери чи цифри потрібен Control, Option або Command.</value>
+  </data>
+  <data name="MacroKey" xml:space="preserve">
+    <value>Клавіша:</value>
+  </data>
+  <data name="MacroText" xml:space="preserve">
+    <value>Текст:</value>
+  </data>
+  <data name="MacroTokens" xml:space="preserve">
+    <value>{TAB}, {ENTER}, {ESC} і {BACKSPACE} натискають ці клавіші.</value>
+  </data>
+  <data name="MacroSignIn" xml:space="preserve">
+    <value>Також на екранах входу та блокування Windows (потрібна фонова служба)</value>
+  </data>
+  <data name="MacroSignInShort" xml:space="preserve">
+    <value>також на екрані входу</value>
+  </data>
+  <data name="MacroAdd" xml:space="preserve">
+    <value>Додати / замінити</value>
+  </data>
+  <data name="MacroRemove" xml:space="preserve">
+    <value>Видалити</value>
+  </data>
+  <data name="MacroInvalid" xml:space="preserve">
+    <value>Введіть текст, а для літери чи цифри позначте Control, Option або Command.</value>
+  </data>
+  <data name="MacroTooMany" xml:space="preserve">
+    <value>Не більше {0} макросів.</value>
+  </data>
 </root>

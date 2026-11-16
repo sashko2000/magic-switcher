@@ -47,6 +47,8 @@ internal sealed class ServiceRequest
     public List<GuardedDevice>? Devices { get; set; }
     /// <summary>Configure: the Apple keyboard top row behavior the user chose (null: unknown, keep the service's).</summary>
     public bool? AppleMediaKeys { get; set; }
+    /// <summary>Configure: macros of the Apple keyboard (null: unknown, keep the service's).</summary>
+    public List<MagicSwitcher.Keyboard.KeyMacro>? Macros { get; set; }
     /// <summary>Configure: the UI language of the tray app, for the status window on the sign-in screen.</summary>
     public string? Language { get; set; }
     /// <summary>Configure: keys remapped on Apple keyboards (null: unknown, keep the service's).</summary>

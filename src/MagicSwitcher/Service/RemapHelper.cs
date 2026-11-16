@@ -20,6 +20,33 @@ internal sealed class RemapHelper : IDisposable
 {
     public const string HelperArgument = "--remap-helper";
 
+    /// <summary>The helper for the sign-in and lock screens: macros marked for them (see <see cref="RunSignInHelper"/>).</summary>
+    public const string SignInArgument = "--signin-helper";
+
+    private readonly string _argument;
+    private readonly string _desktop;
+    private readonly bool _needsUser;
+    private readonly string _name;
+
+    /// <summary>The key remapper in the signed-in user's session, on the user's desktop.</summary>
+    public RemapHelper() : this(HelperArgument, @"winsta0\default", needsUser: true, "Key remapper")
+    {
+    }
+
+    private RemapHelper(string argument, string desktop, bool needsUser, string name)
+    {
+        _argument = argument;
+        _desktop = desktop;
+        _needsUser = needsUser;
+        _name = name;
+    }
+
+    /// <summary>
+    /// The same thing on the Winlogon desktop (the sign-in and lock screens), with or without a signed-in user. A
+    /// keyboard hook only sees the keys of its own desktop, so this helper is idle while the user works.
+    /// </summary>
+    public static RemapHelper ForSignInScreen() => new(SignInArgument, @"winsta0\winlogon", needsUser: false, "Sign-in screen helper");
+
     private readonly Lock _sync = new();
     private Process? _process;
     private uint _session = uint.MaxValue;
@@ -30,7 +57,7 @@ internal sealed class RemapHelper : IDisposable
         lock (_sync)
         {
             uint session = WTSGetActiveConsoleSessionId();
-            bool wanted = needed && session != 0xFFFFFFFF && HasUser(session);
+            bool wanted = needed && session != 0xFFFFFFFF && (!_needsUser || HasUser(session));
             bool running = _process is { HasExited: false };
             if (running && (!wanted || restart || session != _session))
             {
@@ -60,14 +87,14 @@ internal sealed class RemapHelper : IDisposable
         try
         {
             string exe = Environment.ProcessPath ?? throw new InvalidOperationException("Unknown executable path.");
-            int pid = CreateProcessInSession(exe, $"\"{exe}\" {HelperArgument}", session, @"winsta0\default");
+            int pid = CreateProcessInSession(exe, $"\"{exe}\" {_argument}", session, _desktop);
             _process = Process.GetProcessById(pid);
             _session = session;
-            Log.Info($"Key remapper started in session {session} (process {pid})");
+            Log.Info($"{_name} started in session {session} (process {pid})");
         }
         catch (Exception ex)
         {
-            Log.Error("Failed to start the key remapper", ex);
+            Log.Error($"Failed to start: {_name}", ex);
         }
     }
 
@@ -79,11 +106,11 @@ internal sealed class RemapHelper : IDisposable
             {
                 process.Kill();
                 process.WaitForExit(3000);
-                Log.Info("Key remapper stopped");
+                Log.Info($"{_name} stopped");
             }
             catch (Exception ex)
             {
-                Log.Error("Failed to stop the key remapper", ex);
+                Log.Error($"Failed to stop: {_name}", ex);
             }
         }
 
@@ -167,9 +194,30 @@ internal sealed class RemapHelper : IDisposable
         AppPaths.UseMachineData();
         Log.UseFile("remap-log.txt");
         var mappings = BluetoothService.LoadKeyMap();
-        using var remapper = new KeyRemapper(mappings, AppleKeyboardDriver.IsInstalled ? AppleTopRow.MachinePath : null);
+        using var remapper = new KeyRemapper(mappings, AppleKeyboardDriver.IsInstalled ? AppleTopRow.MachinePath : null,
+            BluetoothService.LoadMacros());
         remapper.Start();
         Thread.Sleep(Timeout.Infinite); // the service kills this process when the mappings change or the user signs out
+        return 0;
+    }
+
+    /// <summary>
+    /// The helper process on the sign-in and lock screens: only the macros marked for them, no remapping and no Fn Lock
+    /// (those stay as they were: not on these screens).
+    /// </summary>
+    public static int RunSignInHelper()
+    {
+        AppPaths.UseMachineData();
+        Log.UseFile("signin-log.txt");
+        var macros = BluetoothService.LoadMacros().Where(m => m.OnSignInScreen && m.IsValid).ToList();
+        if (macros.Count == 0)
+        {
+            return 0;
+        }
+
+        using var remapper = new KeyRemapper([], topRowStatePath: null, macros);
+        remapper.Start();
+        Thread.Sleep(Timeout.Infinite); // the service kills this process when the macros change
         return 0;
     }
 

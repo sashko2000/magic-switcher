@@ -580,7 +580,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private async Task ApplyServiceAndRemappingAsync()
     {
-        await PrivilegedActions.ConfigureServiceAsync(_settings.Devices, _settings.AppleMediaKeysByDefault, _settings.AppleKeyMap);
+        await PrivilegedActions.ConfigureServiceAsync(_settings.Devices, _settings.AppleMediaKeysByDefault, _settings.AppleKeyMap, _settings.AppleMacros);
 
         // Decide by the service state, not by whether this call got through: two remappers at once
         // (the service's helper and one here) would confuse each other.
@@ -589,7 +589,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _localRemapper?.Dispose();
         _localRemapper = null;
         bool driver = AppleKeyboardDriver.IsInstalled;
-        if (!viaService && (_settings.AppleKeyMap.Count > 0 || driver))
+        if (!viaService && (_settings.AppleKeyMap.Count > 0 || _settings.AppleMacros.Count > 0 || driver))
         {
             if (driver && !AppleTopRow.Exists(AppleTopRow.UserPath))
             {
@@ -597,7 +597,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 AppleTopRow.Write(AppleTopRow.UserPath, fKeys: _settings.AppleMediaKeysByDefault == false);
             }
 
-            _localRemapper = new KeyRemapper(_settings.AppleKeyMap, driver ? AppleTopRow.UserPath : null);
+            _localRemapper = new KeyRemapper(_settings.AppleKeyMap, driver ? AppleTopRow.UserPath : null, _settings.AppleMacros);
             _localRemapper.Start();
         }
 

@@ -55,8 +55,9 @@ heuristics. What it does, and why:
 - a **low-level keyboard hook** — to remap keys and switch the top row of the Apple keyboard only (nothing is recorded
   or sent anywhere);
 - a **Windows service running as LocalSystem** — to pair the keyboard again before you sign in; a helper it starts
-  in your session so remapping also works in administrator windows; and a display-only status line it shows on the
-  sign-in and lock screens while the keyboard does not work;
+  in your session so remapping also works in administrator windows; a display-only status line it shows on the
+  sign-in and lock screens while the keyboard does not work; and, only if you mark a macro for those screens, a helper
+  that types that macro's text there;
 - **downloads Apple's Boot Camp update from Apple's servers** and installs the keyboard driver from it — only when you
   click **Install driver**.
 
@@ -204,6 +205,25 @@ the release are replaced right away. With the background service the remapper ru
 also works in windows started as administrator; without the service it runs in the tray app and not in those windows.
 It does not work on the sign-in and lock screens. If you used a `Scancode Map` for the same keys, remove it.
 
+## Macros of the Apple keyboard
+
+**Settings → Apple Magic Keyboard → Macros…**: a key of the Apple keyboard, alone or with modifiers, types a text — a
+user name, an e-mail address, a phrase. `{TAB}`, `{ENTER}`, `{ESC}` and `{BACKSPACE}` in the text press those keys;
+everything else is typed as it is, whatever the keyboard layout. Other keyboards do not trigger macros.
+
+- **Keys**: F3 and F6 can be used alone (they are the function keys that reach Windows as plain keys from an Apple
+  keyboard in either top row mode); a letter or a digit needs Control, Option or Command.
+- **On the sign-in and lock screens**: a macro marked for them also works there (the background service runs a helper
+  on those screens). Typical use: a PC that does not show the last user — F3 types the user name and Tab, and you type
+  the PIN or password yourself.
+- **No passwords.** The text is stored as plain text, and a password that a program can type before you sign in would
+  have to be readable by the machine without you — that is no protection. So macros are for things that are not secret.
+
+How the keyboard is told apart: the hook sees the key before raw input names its keyboard, but raw input has reported
+every earlier key, so “the keyboard that typed last” is known. If that was the Apple keyboard, the key is swallowed and
+the macro runs; otherwise the key goes through, and the macro runs a moment later if raw input says it did come from
+the Apple keyboard.
+
 ## The tray menu
 
 - **Your keyboard**: its name and battery level with a check mark while it works here; **Connect “Name”** in bold when it
@@ -341,15 +361,15 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.5.5
-git push origin v1.5.5
+git tag v1.5.6
+git push origin v1.5.6
 ```
 
 The installer is a WiX project (`installer/`, MSI). To build it locally:
 
 ```powershell
 dotnet publish src/MagicSwitcher -c Release -r win-x64 --self-contained true -p:DebugType=none -o publish\MagicSwitcher
-dotnet build installer -c Release -p:Version=1.5.5 -p:AppDir="$PWD\publish\MagicSwitcher"
+dotnet build installer -c Release -p:Version=1.5.6 -p:AppDir="$PWD\publish\MagicSwitcher"
 ```
 
 The service is not described in the MSI tables: the installer calls `MagicSwitcher.exe --install-service` and
@@ -366,6 +386,7 @@ The service is not described in the MSI tables: the installer calls `MagicSwitch
 | `%ProgramData%\MagicSwitcher\top-row.txt` | top row mode (Fn Lock): F-keys or media keys |
 | `%ProgramData%\MagicSwitcher\service-log.txt` | service log (tray menu → **Troubleshooting** → **Open service log**) |
 | `%ProgramData%\MagicSwitcher\remap-log.txt` | log of the key remapper started by the service |
+| `%ProgramData%\MagicSwitcher\signin-log.txt` | log of the macro helper on the sign-in and lock screens |
 | `%ProgramData%\MagicSwitcher\status.txt`, `overlay-log.txt` | what the status line on the sign-in screen shows, and its log |
 
 ## Project structure
@@ -400,12 +421,14 @@ src/MagicSwitcher/
 │  ├─ AppleKeyboardDriver.cs      — downloads/installs Apple's keyboard driver, Fn mode
 │  ├─ KeyRemapper.cs              — remaps keys of Apple keyboards only (hook + raw input), Fn Lock
 │  ├─ AppleTopRow.cs              — top row mode shared by the remapper, the service and the tray
+│  ├─ KeyRemapper.Macros.cs       — macros: a key of the Apple keyboard types a text (KeyMacro.cs)
 │  └─ KeyMapping.cs
 ├─ Localization/                  — Strings*.resx (en/ru/uk), language selection
 └─ UI/
    ├─ TrayApplicationContext.cs   — tray icon and menu
    ├─ SettingsForm.cs             — settings window
    ├─ KeyRemapForm.cs             — key remapping dialog
+   ├─ MacroForm.cs                — macros dialog
    └─ TrayIconFactory.cs          — icon drawn at runtime
 tools/InputProbe/                 — logs the order of keyboard hook, raw input and HID reports (used to design the remapper)
 tools/KeyProbe/                   — tests whether a paired keyboard still accepts the stored link key

@@ -56,6 +56,12 @@ internal static class Program
             return ServiceInstaller.UninstallElevated(keepData: Has(args, ServiceInstaller.KeepDataArgument));
         }
 
+        if (Has(args, RemapHelper.SignInArgument))
+        {
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("Unhandled exception", e.ExceptionObject as Exception);
+            return RemapHelper.RunSignInHelper();
+        }
+
         if (Has(args, RemapHelper.HelperArgument))
         {
             AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("Unhandled exception", e.ExceptionObject as Exception);

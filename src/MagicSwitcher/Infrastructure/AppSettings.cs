@@ -31,6 +31,9 @@ public sealed class AppSettings
     /// <summary>Keys remapped on Apple keyboards only.</summary>
     public List<MagicSwitcher.Keyboard.KeyMapping> AppleKeyMap { get; set; } = [];
 
+    /// <summary>Macros of Apple keyboards: a key types a text.</summary>
+    public List<MagicSwitcher.Keyboard.KeyMacro> AppleMacros { get; set; } = [];
+
     public AppSettings Clone() => new()
     {
         Devices = Devices.Select(d => d with { Services = d.Services?.ToList() }).ToList(),
@@ -42,6 +45,7 @@ public sealed class AppSettings
         Language = Language,
         AppleMediaKeysByDefault = AppleMediaKeysByDefault,
         AppleKeyMap = AppleKeyMap.ToList(),
+        AppleMacros = AppleMacros.ToList(),
     };
 }
 

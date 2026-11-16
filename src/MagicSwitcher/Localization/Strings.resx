@@ -498,4 +498,43 @@
   <data name="RemapScreenSnip" xml:space="preserve">
     <value>Screen snip (Win+Shift+S)</value>
   </data>
+  <data name="MacroButton" xml:space="preserve">
+    <value>Macros…</value>
+  </data>
+  <data name="MacroNone" xml:space="preserve">
+    <value>No macros</value>
+  </data>
+  <data name="MacroTitle" xml:space="preserve">
+    <value>Macros of the Apple keyboard</value>
+  </data>
+  <data name="MacroNote" xml:space="preserve">
+    <value>A key of the Apple keyboard, alone or with modifiers, types a text. Other keyboards are not affected. The text is stored as it is, so do not put passwords here. F3 and F6 can be used alone; a letter or a digit needs Control, Option or Command.</value>
+  </data>
+  <data name="MacroKey" xml:space="preserve">
+    <value>Key:</value>
+  </data>
+  <data name="MacroText" xml:space="preserve">
+    <value>Text:</value>
+  </data>
+  <data name="MacroTokens" xml:space="preserve">
+    <value>{TAB}, {ENTER}, {ESC} and {BACKSPACE} press those keys.</value>
+  </data>
+  <data name="MacroSignIn" xml:space="preserve">
+    <value>Also on the Windows sign-in and lock screens (needs the background service)</value>
+  </data>
+  <data name="MacroSignInShort" xml:space="preserve">
+    <value>also on the sign-in screen</value>
+  </data>
+  <data name="MacroAdd" xml:space="preserve">
+    <value>Add / replace</value>
+  </data>
+  <data name="MacroRemove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="MacroInvalid" xml:space="preserve">
+    <value>Enter a text, and for a letter or a digit check Control, Option or Command.</value>
+  </data>
+  <data name="MacroTooMany" xml:space="preserve">
+    <value>No more than {0} macros.</value>
+  </data>
 </root>
