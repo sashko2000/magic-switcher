@@ -364,7 +364,7 @@
     <value>Also on the Windows sign-in screen. If another device took it over, it is paired again without a dialog. Needs the background service.</value>
   </data>
   <data name="ResultNoMicrophone" xml:space="preserve">
-    <value>“{0}” is connected, but its microphone did not come back. Try again, or turn the device off and on.</value>
+    <value>“{0}” is connected, but its microphone did not come back. Turn the device off and on, then try again.</value>
   </data>
   <data name="TrayRestartAudio" xml:space="preserve">
     <value>Restart Windows audio</value>

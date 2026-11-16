@@ -36,6 +36,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly MicrophoneWatcher _microphones = new();
     private readonly Dictionary<string, DateTime> _microphoneHandledAt = []; // device key -> last notification or automatic repair
     private static readonly TimeSpan MicrophoneRetryAfter = TimeSpan.FromMinutes(15);
+    private DateTime _audioRepairEndedAt = DateTime.MinValue;
     private readonly System.Windows.Forms.Timer _microphoneTimer = new() { Interval = (int)TimeSpan.FromSeconds(30).TotalMilliseconds };
     private bool _microphoneChecking;
     private Action? _balloonAction;
@@ -688,11 +689,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
         try
         {
             int before = _microphones.Lost.Count;
+            var lostBefore = _microphones.Lost.Select(d => d.Key).ToHashSet();
             var found = await _microphones.CheckAsync();
             if (_audioRestarting || _busy.Count > 0)
             {
                 _microphones.Clear(); // a reconnect started meanwhile: what was seen is no longer true
                 return;
+            }
+
+            // A device that is no longer "lost" got its microphone back or disconnected. Right after a repair that is the
+            // repair's own reconnect; later it is the user turning the device off and on — a fresh start, so it may be
+            // repaired again without waiting (that is what helped when repeated repairs alone did not).
+            if (DateTime.UtcNow - _audioRepairEndedAt > TimeSpan.FromSeconds(45))
+            {
+                foreach (string key in lostBefore.Except(_microphones.Lost.Select(d => d.Key)))
+                {
+                    _microphoneHandledAt.Remove(key);
+                }
             }
 
             if (_microphones.Lost.Count != before)
@@ -794,6 +807,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         finally
         {
             _audioRestarting = false;
+            _audioRepairEndedAt = DateTime.UtcNow;
             _microphones.Restart();
             _ = RecheckMicrophonesAsync();
             RebuildMenu();
