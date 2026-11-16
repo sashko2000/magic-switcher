@@ -5,6 +5,12 @@
   <Folder Name="/src/">
     <Project Path="src/MagicSwitcher/MagicSwitcher.csproj" />
   </Folder>
+  <Folder Name="/installer/">
+    <!-- Not built with the solution: it needs the published app folder (see the comment in the project file). -->
+    <Project Path="installer/MagicSwitcher.Installer.wixproj">
+      <Build Project="false" />
+    </Project>
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/InputProbe/InputProbe.csproj" />
     <Project Path="tools/KeyProbe/KeyProbe.csproj" />
