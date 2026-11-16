@@ -34,6 +34,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _topRowFKeys;
     private bool _audioRestarting;
     private readonly MicrophoneWatcher _microphones = new();
+    private readonly Dictionary<string, DateTime> _microphoneHandledAt = []; // device key -> last notification or automatic repair
+    private static readonly TimeSpan MicrophoneRetryAfter = TimeSpan.FromMinutes(15);
     private readonly System.Windows.Forms.Timer _microphoneTimer = new() { Interval = (int)TimeSpan.FromSeconds(30).TotalMilliseconds };
     private bool _microphoneChecking;
     private Action? _balloonAction;
@@ -703,7 +705,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 return;
             }
 
-            string names = string.Join(", ", found.Select(d => d.DisplayName));
+            // The repair reconnects the device, so the watcher sees it as a new loss when the repair did not help: without
+            // a limit, "restore automatically" would restart Windows audio every couple of minutes for as long as the
+            // microphone stays away. So: one automatic attempt per device per 15 minutes, and no repeated notifications.
+            var now = DateTime.UtcNow;
+            var fresh = found.Where(d => !_microphoneHandledAt.TryGetValue(d.Key, out var at) || now - at >= MicrophoneRetryAfter).ToList();
+            if (fresh.Count == 0)
+            {
+                Log.Info($"Lost microphone ({string.Join(", ", found.Select(d => d.DisplayName))}): already handled a moment ago, leaving it");
+                return;
+            }
+
+            foreach (var device in fresh)
+            {
+                _microphoneHandledAt[device.Key] = now;
+            }
+
+            string names = string.Join(", ", fresh.Select(d => d.DisplayName));
             if (_settings.RestoreMicrophoneAutomatically && PrivilegedActions.CanRestartWindowsAudioSilently)
             {
                 Log.Info($"Lost microphone ({names}): restoring automatically");

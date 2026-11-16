@@ -10,13 +10,15 @@ namespace MagicSwitcher.Bluetooth;
 /// not only the ones selected in settings.
 /// <para>
 /// The microphone endpoint appears a few seconds after the device connects, so a device counts as having lost it only
-/// when it is missing in two checks in a row. Each loss is reported once: again only after the microphone came back
+/// when it is missing in three checks in a row. Each loss is reported once: again only after the microphone came back
 /// or the device reconnected.
 /// </para>
 /// </summary>
 internal sealed class MicrophoneWatcher
 {
-    private const int MissesToReport = 2;
+    // Three checks 30 s apart: the device has been connected without a microphone for at least a minute. Two were too
+    // few: a speaker that was just turned on got "repaired" while it was still connecting.
+    private const int MissesToReport = 3;
 
     private readonly Dictionary<ulong, int> _misses = [];
     private readonly Dictionary<ulong, SavedDevice> _lost = [];

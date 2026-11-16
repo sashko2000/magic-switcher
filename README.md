@@ -266,7 +266,9 @@ the same action as **Restart Windows audio**).
 
 **Settings → General** has two options: *Notify when a Bluetooth speaker or headset loses its microphone* (on by default)
 and *Restore the microphone automatically* (off by default: restarting audio interrupts sound in all apps for a few
-seconds, also during a call; it needs the background service).
+seconds, also during a call; it needs the background service). A device counts as having lost its microphone after a
+minute without one, and it is repaired automatically at most once in 15 minutes: when the repair does not help, the
+tray menu item stays for another try.
 
 ## Other devices and how connecting works
 
