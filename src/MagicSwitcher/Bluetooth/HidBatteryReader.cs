@@ -152,7 +152,9 @@ internal static class HidBatteryReader
                             continue;
                         }
 
-                        int level = Scale(raw, vc.LogicalMin, vc.LogicalMax);
+                        // Battery System state of charge is a percentage by definition; Apple keyboards declare
+                        // it as 0..255 but send 0..100, so scaling by the logical range would show 100% as 39%.
+                        int level = page == 0x85 && raw <= 100 ? (int)raw : Scale(raw, vc.LogicalMin, vc.LogicalMax);
                         if (log)
                         {
                             Log.Info($"[{deviceName}]     battery {page:X2}:{usage:X2} raw {raw} -> {level}%");
