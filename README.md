@@ -364,15 +364,15 @@ Pushing a version tag builds the app on GitHub Actions and publishes a release w
 (`.github/workflows/release.yml`); the version is taken from the tag:
 
 ```powershell
-git tag v1.5.6
-git push origin v1.5.6
+git tag v1.5.7
+git push origin v1.5.7
 ```
 
 The installer is a WiX project (`installer/`, MSI). To build it locally:
 
 ```powershell
 dotnet publish src/MagicSwitcher -c Release -r win-x64 --self-contained true -p:DebugType=none -o publish\MagicSwitcher
-dotnet build installer -c Release -p:Version=1.5.6 -p:AppDir="$PWD\publish\MagicSwitcher"
+dotnet build installer -c Release -p:Version=1.5.7 -p:AppDir="$PWD\publish\MagicSwitcher"
 ```
 
 The service is not described in the MSI tables: the installer calls `MagicSwitcher.exe --install-service` and
