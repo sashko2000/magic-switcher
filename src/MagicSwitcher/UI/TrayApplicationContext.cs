@@ -37,6 +37,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly Dictionary<string, DateTime> _microphoneHandledAt = []; // device key -> last notification or automatic repair
     private static readonly TimeSpan MicrophoneRetryAfter = TimeSpan.FromMinutes(15);
     private DateTime _audioRepairEndedAt = DateTime.MinValue;
+    // Automatic repair waits while an app records from a microphone (a call), and then 30 s more: the device switches
+    // back from Hands-Free after the call and may miss its microphone for a moment on its own.
+    private static readonly TimeSpan MicrophoneFreeFor = TimeSpan.FromSeconds(30);
+    private readonly HashSet<string> _microphoneRepairPending = [];
+    private bool _microphoneWasBusy;
+    private DateTime _microphoneFreedAt = DateTime.MinValue;
     private readonly System.Windows.Forms.Timer _microphoneTimer = new() { Interval = (int)TimeSpan.FromSeconds(30).TotalMilliseconds };
     private bool _microphoneChecking;
     private Action? _balloonAction;
@@ -215,7 +221,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         else if (_microphones.Lost.Count > 0)
         {
-            var item = new ToolStripMenuItem(Strings.TrayRestoreMicrophone(LostMicrophoneNames()), null, async (_, _) => await RestartAudioAsync())
+            var item = new ToolStripMenuItem(Strings.TrayRestoreMicrophone(LostMicrophoneNames()), null, async (_, _) => await RestartAudioAsync(confirm: true))
             {
                 ToolTipText = Strings.TrayRestartAudioTooltip,
             };
@@ -247,7 +253,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             });
         }
 
-        diagnostics.DropDownItems.Add(new ToolStripMenuItem(Strings.TrayRestartAudio, null, async (_, _) => await RestartAudioAsync())
+        diagnostics.DropDownItems.Add(new ToolStripMenuItem(Strings.TrayRestartAudio, null, async (_, _) => await RestartAudioAsync(confirm: true))
         {
             Enabled = !_audioRestarting,
             ToolTipText = Strings.TrayRestartAudioTooltip,
@@ -713,8 +719,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 RebuildMenu();
             }
 
-            if (found.Count == 0)
+            // Devices whose automatic repair waits for the microphone to be free, as long as they still miss it.
+            var lostKeys = _microphones.Lost.Select(d => d.Key).ToHashSet();
+            _microphoneRepairPending.IntersectWith(lostKeys);
+            var candidates = found
+                .Concat(_microphones.Lost.Where(d => _microphoneRepairPending.Contains(d.Key)))
+                .DistinctBy(d => d.Key)
+                .ToList();
+            if (candidates.Count == 0)
             {
+                _microphoneWasBusy = false;
                 return;
             }
 
@@ -722,20 +736,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // a limit, "restore automatically" would restart Windows audio every couple of minutes for as long as the
             // microphone stays away. So: one automatic attempt per device per 15 minutes, and no repeated notifications.
             var now = DateTime.UtcNow;
-            var fresh = found.Where(d => !_microphoneHandledAt.TryGetValue(d.Key, out var at) || now - at >= MicrophoneRetryAfter).ToList();
+            var fresh = candidates.Where(d => !_microphoneHandledAt.TryGetValue(d.Key, out var at) || now - at >= MicrophoneRetryAfter).ToList();
             if (fresh.Count == 0)
             {
-                Log.Info($"Lost microphone ({string.Join(", ", found.Select(d => d.DisplayName))}): already handled a moment ago, leaving it");
+                Log.Info($"Lost microphone ({string.Join(", ", candidates.Select(d => d.DisplayName))}): already handled a moment ago, leaving it");
                 return;
             }
+
+            string names = string.Join(", ", fresh.Select(d => d.DisplayName));
+            bool automatic = _settings.RestoreMicrophoneAutomatically && PrivilegedActions.CanRestartWindowsAudioSilently;
+            if (automatic && !MicrophoneIsFree(names))
+            {
+                _microphoneRepairPending.UnionWith(fresh.Select(d => d.Key));
+                return;
+            }
+
+            _microphoneRepairPending.Clear();
 
             foreach (var device in fresh)
             {
                 _microphoneHandledAt[device.Key] = now;
             }
 
-            string names = string.Join(", ", fresh.Select(d => d.DisplayName));
-            if (_settings.RestoreMicrophoneAutomatically && PrivilegedActions.CanRestartWindowsAudioSilently)
+            if (automatic)
             {
                 Log.Info($"Lost microphone ({names}): restoring automatically");
                 Notify(Strings.MicrophoneLostTitle, Strings.MicrophoneLostFixing(names), ToolTipIcon.Info, force: true);
@@ -745,7 +768,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             {
                 Log.Info($"Lost microphone ({names}): notifying");
                 Notify(Strings.MicrophoneLostTitle, Strings.MicrophoneLostText(names), ToolTipIcon.Warning, force: true,
-                    onClick: () => _ = RestartAudioAsync());
+                    onClick: () => _ = RestartAudioAsync(confirm: true));
             }
         }
         catch (Exception ex)
@@ -759,14 +782,58 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     /// <summary>
+    /// Whether the automatic repair may restart Windows audio now: no app records from a microphone, and none has for
+    /// the last 30 s. Restarting audio during a call cuts the call's sound, and a repair right after the call would
+    /// catch the device switching back from Hands-Free.
+    /// </summary>
+    private bool MicrophoneIsFree(string names)
+    {
+        var apps = MicrophoneUse.AppsRecording();
+        if (apps.Count > 0)
+        {
+            if (!_microphoneWasBusy)
+            {
+                Log.Info($"Lost microphone ({names}): repair postponed, the microphone is in use by {string.Join(", ", apps)}");
+            }
+
+            _microphoneWasBusy = true;
+            return false;
+        }
+
+        if (_microphoneWasBusy)
+        {
+            _microphoneWasBusy = false;
+            _microphoneFreedAt = DateTime.UtcNow;
+            Log.Info($"Lost microphone ({names}): the microphone is free, checking again in {MicrophoneFreeFor.TotalSeconds:0} s");
+            return false;
+        }
+
+        // The timer ticks every 30 s; a few seconds of slack so that the next tick counts.
+        return DateTime.UtcNow - _microphoneFreedAt >= MicrophoneFreeFor - TimeSpan.FromSeconds(5);
+    }
+
+    /// <summary>
     /// Restarts the Windows audio services, then reconnects the selected speakers and headsets that are connected:
     /// what helps when sound and the microphone stop working everywhere and otherwise only a reboot would.
     /// </summary>
-    private async Task RestartAudioAsync()
+    private async Task RestartAudioAsync(bool confirm = false)
     {
         if (_audioRestarting)
         {
             return;
+        }
+
+        // Asked from the menu or a notification during a call: restarting audio cuts the call's sound for a few seconds.
+        if (confirm && MicrophoneUse.AppsRecording() is { Count: > 0 } apps)
+        {
+            Log.Info($"Restart Windows audio asked while the microphone is in use by {string.Join(", ", apps)}");
+            var answer = MessageBox.Show(Strings.AudioRestartDuringCall(string.Join(", ", apps)), Strings.TrayRestartAudio,
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes)
+            {
+                Log.Info("Restart Windows audio: cancelled");
+                return;
+            }
         }
 
         _audioRestarting = true;

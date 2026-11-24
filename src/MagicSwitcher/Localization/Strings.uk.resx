@@ -456,6 +456,11 @@
   <data name="MicrophoneLostText" xml:space="preserve">
     <value>«{0}» підключено без мікрофона. Натисніть тут або виберіть «Повернути мікрофон» у меню значка, щоб відновити його (звук перерветься на кілька секунд).</value>
   </data>
+  <data name="AudioRestartDuringCall" xml:space="preserve">
+    <value>{0} зараз користується мікрофоном — імовірно, триває дзвінок.
+
+Перезапуск звуку Windows перерве звук у всіх застосунках на кілька секунд, зокрема в дзвінку. Перезапустити зараз?</value>
+  </data>
   <data name="MicrophoneLostFixing" xml:space="preserve">
     <value>«{0}» втратило мікрофон. Перезапускаю звук Windows, щоб його повернути…</value>
   </data>

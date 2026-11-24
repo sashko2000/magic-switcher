@@ -456,6 +456,11 @@
   <data name="MicrophoneLostText" xml:space="preserve">
     <value>“{0}” is connected without its microphone. Click here, or choose “Restore the microphone” in the tray menu, to bring it back (sound is interrupted for a few seconds).</value>
   </data>
+  <data name="AudioRestartDuringCall" xml:space="preserve">
+    <value>{0} is using the microphone right now, probably for a call.
+
+Restarting Windows audio cuts the sound in all apps for a few seconds, the call included. Restart now?</value>
+  </data>
   <data name="MicrophoneLostFixing" xml:space="preserve">
     <value>“{0}” lost its microphone. Restarting Windows audio to bring it back…</value>
   </data>

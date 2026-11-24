@@ -267,8 +267,13 @@ the same action as **Restart Windows audio**).
 **Settings → General** has two options: *Notify when a Bluetooth speaker or headset loses its microphone* (on by default)
 and *Restore the microphone automatically* (off by default: restarting audio interrupts sound in all apps for a few
 seconds, also during a call; it needs the background service). A device counts as having lost its microphone after a
-minute without one, and it is repaired automatically at most once in 15 minutes: when the repair does not help, the
-tray menu item stays for another try.
+minute without one, and it is repaired automatically at most once in 15 minutes (or again after you turn the device off
+and on): when the repair does not help, the tray menu item stays for another try.
+
+No automatic repair during a call: while any app records from a microphone (Teams, Zoom, a browser — Windows keeps
+this for its microphone privacy indicator), the repair waits, and after the app lets the microphone go it waits 30 more
+seconds, because the device then switches back from Hands-Free and may come back by itself. Choosing **Restore the
+microphone** or **Restart Windows audio** yourself during a call asks first.
 
 ## Other devices and how connecting works
 
@@ -402,6 +407,7 @@ src/MagicSwitcher/
 │  ├─ DeviceStatusMonitor.cs      — tracks ConnectionStatus for the menu
 │  ├─ AudioEndpoints.cs           — does a speaker or headset have its microphone
 │  ├─ MicrophoneWatcher.cs        — notices connected audio devices that lost it
+│  ├─ MicrophoneUse.cs            — which apps record from a microphone now (no repair during a call)
 │  ├─ NativeBluetooth.cs          — P/Invoke to bthprops.cpl (service reinstall)
 │  ├─ NativeBluetooth.Pairing.cs  — pairing without the Windows dialog
 │  ├─ NativeBluetooth.LinkKey.cs  — does the device still accept the stored link key

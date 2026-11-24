@@ -163,6 +163,7 @@ internal static class Strings
     public static string MicrophoneLostTitle => Get(nameof(MicrophoneLostTitle));
     public static string MicrophoneLostText(object? arg0) => Format(nameof(MicrophoneLostText), arg0);
     public static string MicrophoneLostFixing(object? arg0) => Format(nameof(MicrophoneLostFixing), arg0);
+    public static string AudioRestartDuringCall(object? arg0) => Format(nameof(AudioRestartDuringCall), arg0);
     public static string TrayRestoreMicrophone(object? arg0) => Format(nameof(TrayRestoreMicrophone), arg0);
     public static string PullHint => Get(nameof(PullHint));
     public static string TrayOtherDevices => Get(nameof(TrayOtherDevices));
